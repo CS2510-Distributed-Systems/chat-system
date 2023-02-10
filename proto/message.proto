@@ -1,0 +1,24 @@
+syntax="proto3";
+
+option go_package = "./pb";
+
+package chat;
+
+message ChatMessage {
+        string text =1;
+        uint32 likes =2;
+}
+
+message Command {
+    enum Commands {
+        UNKNOWN =0;
+        LOGIN =1;
+        JOIN =2;
+        APPEND =3;
+        LIKE =4;
+        UNLIKE =5;
+    }
+    Commands command=1;
+}
+
+

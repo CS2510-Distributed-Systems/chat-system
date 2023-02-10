@@ -1,0 +1,14 @@
+syntax="proto3";
+
+option go_package = "./pb";
+
+package chat;
+import "user.proto";
+import "message.proto";
+
+message Group {
+    string groupID =1;
+    string groupname =2;
+    repeated User participants =3;
+    repeated ChatMessage messages =4;
+}

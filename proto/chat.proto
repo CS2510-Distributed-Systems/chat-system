@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+package chat;
+
+import "user.proto";
+import "message.proto";
+import "group.proto";
+import "client.proto";
+
+
+message JoinChat {
+    Client client = 1;
+    User user = 2;
+    Command command = 3;
+    string groupname=4;
+  }
+
+message AppendChat {
+  Client client = 1;
+  User user = 2;
+  Command command = 3;
+  ChatMessage message = 4;
+  Group group = 5;
+}
+
+message LikeMessage{
+    Client client = 1;
+    User user = 2;
+    Command command = 3;
+    uint32 messageid =4;
+    Group group = 5;
+}
+
+message UnLikeMessage{
+    Client client = 1;
+    User user = 2;
+    Command command = 3;
+    uint32 messageid =4;
+    Group group = 5;
+}
