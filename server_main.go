@@ -1,15 +1,16 @@
 package main
 
-
 import (
+	"flag"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
-	"flag"
-	"log"
 )
 
 const MAX_LINE int = 1024
+
+//Test
 
 func main() {
 	// Process commandline arguments
@@ -26,11 +27,10 @@ func main() {
 
 	//start accepting connections from client
 	newClient(conn)
-	
 
 }
 
-func startServer(connType string, port int)  net.Listener {
+func startServer(connType string, port int) net.Listener {
 	fmt.Println("Listening for data on port", port)
 	conn, err := net.Listen(connType, ":"+strconv.Itoa(port))
 	if err != nil {
@@ -39,9 +39,8 @@ func startServer(connType string, port int)  net.Listener {
 	return conn
 }
 
-
-func newClient(conn net.Listener){
-	for{
+func newClient(conn net.Listener) {
+	for {
 		//accept client
 		fmt.Println("new client request recieved")
 		new_client_conn, err := conn.Accept()
@@ -53,7 +52,7 @@ func newClient(conn net.Listener){
 	}
 }
 
-func serveClient(new_client_conn net.Conn){
+func serveClient(new_client_conn net.Conn) {
 	// Receive data from client (store in buf)
 	for {
 		buf := make([]byte, MAX_LINE)
@@ -62,14 +61,14 @@ func serveClient(new_client_conn net.Conn){
 			fmt.Printf("error in reading the data from client: %s", err)
 		}
 		fmt.Printf("received a message from client: %s", buf)
-		response  := processData(string(buf[:ret]))
+		response := processData(string(buf[:ret]))
 		//send response to connected client
 		ret, err = new_client_conn.Write(response)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	
+
 }
 
 func processData(msgstr string) []byte {
