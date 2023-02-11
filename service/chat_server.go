@@ -12,6 +12,8 @@ type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
 }
 
+func NewChatServiceServer() 
+
 
 //rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
