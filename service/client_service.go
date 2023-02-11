@@ -15,6 +15,9 @@ import (
 type chatServiceClient struct {
 	service pb.ChatServiceClient
 }
+type UserAuthServiceClient struct {
+	authService pb.AuthServiceClient
+}
 
 func NewChatServiceClient(conn *grpc.ClientConn) *chatServiceClient {
 	return &chatServiceClient{
@@ -48,8 +51,7 @@ func JoinGroup(groupname string, client pb.ChatServiceClient) error {
 
 }
 
-func (client *chatServiceClient) JoinGroup(ctx context.Context, joinchat *pb.JoinRequest)  {
-	
+func (client *chatServiceClient) JoinGroup(ctx context.Context, joinchat *pb.JoinRequest) {
 
 	// // set timeout
 	// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -64,9 +66,24 @@ func (client *chatServiceClient) JoinGroup(ctx context.Context, joinchat *pb.Joi
 		} else {
 			log.Fatal("cannot create laptop: ", err)
 		}
-		return 
+		return
 	}
 
 	fmt.Printf("a group is created in server with groupid: %s\n", res.Group.GroupID)
 
+}
+
+func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse, error) {
+	user_details := &pb.LoginRequest{
+		User: &pb.User{
+			Id:   uuid.New().String(),
+			Name: user_name,
+		},
+	}
+	res, err := client.Login(context.Background(), user_details)
+	if err != nil {
+		log.Printf("Failed to create user: %v", err)
+	}
+	log.Println(res)
+	return res, nil
 }

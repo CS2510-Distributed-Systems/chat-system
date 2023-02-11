@@ -20,8 +20,9 @@ func main() {
 
 	grpcserver := grpc.NewServer()
 	chatserver := &service.ChatServiceServer{}
+	authserver := &service.UserAuthServiceServer{}
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
-
+	pb.RegisterAuthServiceServer(grpcserver, authserver)
 	log.Printf("start server on port: %d", port)
 	Listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
@@ -32,7 +33,7 @@ func main() {
 	err = grpcserver.Serve(Listener)
 	fmt.Println(err)
 	if err != nil {
-		return 
+		return
 	}
 
 }

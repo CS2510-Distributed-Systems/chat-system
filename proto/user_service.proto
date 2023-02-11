@@ -16,6 +16,8 @@ message LoginResponse {
 
 service AuthService{
     rpc Login(LoginRequest) returns (LoginResponse) {};
-    rpc NewUserCreation(LoginRequest) returns (LoginResponse) {};
+}
 
+service NewUserCreate{
+    rpc NewUserCreate(LoginRequest) returns (LoginResponse) {};
 }

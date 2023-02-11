@@ -9,11 +9,12 @@ import (
 
 	"chat-system/pb"
 	"chat-system/service"
+	"strings"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"strings"
 )
 
 func main() {
@@ -37,10 +38,36 @@ func main() {
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
 	// defer conn.Close()
 	chatclient := pb.NewChatServiceClient(conn)
+	authclient := pb.NewAuthServiceClient(conn)
 
-	err = readInput(chatclient)
-	if err != nil {
-		log.Fatalf("cannot read the input: %s", err)
+	for {
+		log.Printf("Enter the message:")
+		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			log.Fatalf("Cannot read the message, please enter again\n")
+		}
+
+		msg = strings.Trim(msg, "\r\n")
+
+		args := strings.Split(msg, " ")
+		cmd := strings.TrimSpace(args[0])
+
+		switch cmd {
+		case "u":
+			username := strings.TrimSpace(args[1])
+			res, err := service.UserLogin(username, authclient)
+			if err != nil {
+				log.Printf("Failed to login: %v", err)
+			}
+			log.Println(res)
+		case "j":
+			groupname := strings.TrimSpace(args[1])
+			err = service.JoinGroup(groupname, chatclient)
+		default:
+			log.Printf("incorrect command, please enter again\n")
+
+		}
+
 	}
 
 }
