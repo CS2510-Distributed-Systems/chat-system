@@ -23,9 +23,6 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
 	JoinGroup(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
-	AppendMessageInGroup(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
-	LikeMessageInGroup(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error)
-	UnLikeMessageInGroup(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error)
 }
 
 type chatServiceClient struct {
@@ -45,61 +42,20 @@ func (c *chatServiceClient) JoinGroup(ctx context.Context, in *JoinRequest, opts
 	return out, nil
 }
 
-func (c *chatServiceClient) AppendMessageInGroup(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
-	out := new(AppendResponse)
-	err := c.cc.Invoke(ctx, "/chat.ChatService/AppendMessageInGroup", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) LikeMessageInGroup(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error) {
-	out := new(LikeResponse)
-	err := c.cc.Invoke(ctx, "/chat.ChatService/LikeMessageInGroup", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) UnLikeMessageInGroup(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error) {
-	out := new(LikeResponse)
-	err := c.cc.Invoke(ctx, "/chat.ChatService/UnLikeMessageInGroup", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ChatServiceServer is the server API for ChatService service.
-// All implementations must embed UnimplementedChatServiceServer
+// All implementations should embed UnimplementedChatServiceServer
 // for forward compatibility
 type ChatServiceServer interface {
 	JoinGroup(context.Context, *JoinRequest) (*JoinResponse, error)
-	AppendMessageInGroup(context.Context, *AppendRequest) (*AppendResponse, error)
-	LikeMessageInGroup(context.Context, *LikeRequest) (*LikeResponse, error)
-	UnLikeMessageInGroup(context.Context, *LikeRequest) (*LikeResponse, error)
-	mustEmbedUnimplementedChatServiceServer()
 }
 
-// UnimplementedChatServiceServer must be embedded to have forward compatible implementations.
+// UnimplementedChatServiceServer should be embedded to have forward compatible implementations.
 type UnimplementedChatServiceServer struct {
 }
 
 func (UnimplementedChatServiceServer) JoinGroup(context.Context, *JoinRequest) (*JoinResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinGroup not implemented")
 }
-func (UnimplementedChatServiceServer) AppendMessageInGroup(context.Context, *AppendRequest) (*AppendResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AppendMessageInGroup not implemented")
-}
-func (UnimplementedChatServiceServer) LikeMessageInGroup(context.Context, *LikeRequest) (*LikeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LikeMessageInGroup not implemented")
-}
-func (UnimplementedChatServiceServer) UnLikeMessageInGroup(context.Context, *LikeRequest) (*LikeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UnLikeMessageInGroup not implemented")
-}
-func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 
 // UnsafeChatServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ChatServiceServer will
@@ -130,60 +86,6 @@ func _ChatService_JoinGroup_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ChatService_AppendMessageInGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AppendRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).AppendMessageInGroup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chat.ChatService/AppendMessageInGroup",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).AppendMessageInGroup(ctx, req.(*AppendRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_LikeMessageInGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LikeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).LikeMessageInGroup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chat.ChatService/LikeMessageInGroup",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).LikeMessageInGroup(ctx, req.(*LikeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_UnLikeMessageInGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LikeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).UnLikeMessageInGroup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chat.ChatService/UnLikeMessageInGroup",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).UnLikeMessageInGroup(ctx, req.(*LikeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -194,18 +96,6 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "JoinGroup",
 			Handler:    _ChatService_JoinGroup_Handler,
-		},
-		{
-			MethodName: "AppendMessageInGroup",
-			Handler:    _ChatService_AppendMessageInGroup_Handler,
-		},
-		{
-			MethodName: "LikeMessageInGroup",
-			Handler:    _ChatService_LikeMessageInGroup_Handler,
-		},
-		{
-			MethodName: "UnLikeMessageInGroup",
-			Handler:    _ChatService_UnLikeMessageInGroup_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
