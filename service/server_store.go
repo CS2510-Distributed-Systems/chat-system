@@ -1,21 +1,35 @@
 package service
 
-import "chat-system/pb"
+import (
+	"chat-system/pb"
+	"fmt"
+	"sync"
+)
 
-//	type SaveUserData interface {
-//		SaveUser(user *pb.User) (*User_Data, error)
-//	}
-type User_Data struct {
-	user_auth map[string]*pb.User
+type UserStore interface {
+	SaveUser(user *pb.User) 
+	
+}
+type InMemoryUserStore struct {
+	mutex sync.RWMutex
+	User  map[string]*pb.User
 }
 
-func newUserStore() *User_Data {
-	return &User_Data{
-		user_auth: make(map[string]*pb.User),
+func NewInMemoryUserStore() *InMemoryUserStore {
+	return &InMemoryUserStore{
+		User: make(map[string]*pb.User),
 	}
 }
 
-func (new_user *User_Data) SaveUser(user_data *pb.User) (*User_Data, error) {
-	new_user.user_auth[user_data.Id] = user_data
-	return new_user, nil
+func (userstore *InMemoryUserStore) SaveUser(user *pb.User) {
+	//find if the user is already present
+	//TODO
+
+	//else save the new user
+	userstore.mutex.Lock()
+	defer userstore.mutex.Unlock()
+	Id := user.GetId()
+	userstore.User[Id] = user
+
+	fmt.Printf("user saved. New map Instance : ", userstore)
 }

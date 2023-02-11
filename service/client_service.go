@@ -23,7 +23,6 @@ func NewChatServiceClient(conn *grpc.ClientConn) *chatServiceClient {
 	return &chatServiceClient{
 		service: pb.NewChatServiceClient(conn),
 	}
-
 }
 
 func JoinGroup(groupname string, client pb.ChatServiceClient) error {
@@ -84,6 +83,6 @@ func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
 	}
-	log.Println(res)
+	log.Printf("User %v Logged in succesfully.",res.GetId())
 	return res, nil
 }

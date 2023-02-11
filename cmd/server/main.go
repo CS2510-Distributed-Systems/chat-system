@@ -20,7 +20,8 @@ func main() {
 
 	grpcserver := grpc.NewServer()
 	chatserver := &service.ChatServiceServer{}
-	authserver := &service.UserAuthServiceServer{}
+	userstore := service.NewInMemoryUserStore()
+	authserver := service.NewUserAuthServiceServer(userstore)
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
 	pb.RegisterAuthServiceServer(grpcserver, authserver)
 	log.Printf("start server on port: %d", port)

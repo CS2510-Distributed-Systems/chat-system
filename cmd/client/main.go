@@ -55,11 +55,11 @@ func main() {
 		switch cmd {
 		case "u":
 			username := strings.TrimSpace(args[1])
-			res, err := service.UserLogin(username, authclient)
+			_, err := service.UserLogin(username, authclient)
 			if err != nil {
 				log.Printf("Failed to login: %v", err)
 			}
-			log.Println(res)
+			
 		case "j":
 			groupname := strings.TrimSpace(args[1])
 			err = service.JoinGroup(groupname, chatclient)
