@@ -1,10 +1,14 @@
 package main
 
 import (
+	"chat-system/pb"
+	"chat-system/service"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"strconv"
+
 	"google.golang.org/grpc"
 )
 
@@ -15,20 +19,20 @@ func main() {
 	port := *portArg
 
 	grpcserver := grpc.NewServer()
-
+	chatserver := &service.ChatServiceServer{}
+	pb.RegisterChatServiceServer(grpcserver, chatserver)
 
 	log.Printf("start server on port: %d", port)
 	Listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
-	if err != nil{
-		log.Fatal("cannot start server: %w",err)
+	if err != nil {
+		log.Fatal("cannot start server: %w", err)
 	}
+	log.Printf("Start GRPC server at %s", Listener.Addr())
 
 	err = grpcserver.Serve(Listener)
-	if err!=nil{
-		log.Fatal("Cannot start server", err)
+	fmt.Println(err)
+	if err != nil {
+		return 
 	}
-
-
-
 
 }

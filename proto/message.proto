@@ -9,16 +9,6 @@ message ChatMessage {
         uint32 likes =2;
 }
 
-message Command {
-    enum Commands {
-        UNKNOWN =0;
-        LOGIN =1;
-        JOIN =2;
-        APPEND =3;
-        LIKE =4;
-        UNLIKE =5;
-    }
-    Commands command=1;
-}
+
 
 

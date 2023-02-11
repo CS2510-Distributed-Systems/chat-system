@@ -35,7 +35,7 @@ message UnLikeResponse {
 
 service ChatService {
   rpc JoinGroup(JoinRequest) returns (JoinResponse) {};
-  rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
-  rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
-  rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+  // rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
+  // rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+  // rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
 }

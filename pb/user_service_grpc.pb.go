@@ -53,15 +53,14 @@ func (c *authServiceClient) NewUserCreation(ctx context.Context, in *LoginReques
 }
 
 // AuthServiceServer is the server API for AuthService service.
-// All implementations must embed UnimplementedAuthServiceServer
+// All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility
 type AuthServiceServer interface {
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	NewUserCreation(context.Context, *LoginRequest) (*LoginResponse, error)
-	mustEmbedUnimplementedAuthServiceServer()
 }
 
-// UnimplementedAuthServiceServer must be embedded to have forward compatible implementations.
+// UnimplementedAuthServiceServer should be embedded to have forward compatible implementations.
 type UnimplementedAuthServiceServer struct {
 }
 
@@ -71,7 +70,6 @@ func (UnimplementedAuthServiceServer) Login(context.Context, *LoginRequest) (*Lo
 func (UnimplementedAuthServiceServer) NewUserCreation(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NewUserCreation not implemented")
 }
-func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 
 // UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AuthServiceServer will
