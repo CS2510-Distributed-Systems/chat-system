@@ -10,16 +10,20 @@ import (
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
+	store ServerStore
 }
 
-
-//rpc
+// rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 
 	group := req.GetJoinchat()
 	log.Printf("receive a group join request with name: %s", group.Groupname)
 
 	//save the group details in the group store
+	// id, err := s.store.SaveUser(group.GetUser())
+	// if err!= nil{
+	// 	return nil, status.Errorf(codes.Internal, "cannot save user to store: %v", err)
+	// }
 
 	newgroup := &pb.Group{
 		GroupID:   uuid.New().String(),
@@ -27,11 +31,11 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 
 		Participants: []*pb.User{
 			{
-				Id:   uuid.New().String(),
+				Id:   uuid.New().ID(),
 				Name: "Dilip",
 			},
 			{
-				Id:   uuid.New().String(),
+				Id:   uuid.New().ID(),
 				Name: "Teja",
 			},
 		},

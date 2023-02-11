@@ -37,15 +37,16 @@ func main() {
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
 	// defer conn.Close()
 	chatclient := pb.NewChatServiceClient(conn)
+	authclient := pb.NewAuthServiceClient(conn)
 
-	err = readInput(chatclient)
+	err = readInput(chatclient, authclient)
 	if err != nil {
 		log.Fatalf("cannot read the input: %s", err)
 	}
 
 }
 
-func readInput(client pb.ChatServiceClient) error {
+func readInput(client pb.ChatServiceClient, auth pb.AuthServiceClient) error {
 	for {
 		log.Printf("Enter the message:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -66,6 +67,9 @@ func readInput(client pb.ChatServiceClient) error {
 				return status.Errorf(codes.Unavailable, "It faced few errors: %w", err)
 
 			}
+		case "u":
+			
+
 		default:
 			log.Printf("incorrect command, please enter again\n")
 
