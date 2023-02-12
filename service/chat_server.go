@@ -8,12 +8,19 @@ import (
 	"log"
 	"time"
 
-	
+	"google.golang.org/grpc/metadata"
 )
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
+
 	groupstore GroupStore
+}
+
+func NewChatServiceServer(groupstore GroupStore) *ChatServiceServer {
+	return &ChatServiceServer{
+		groupstore: groupstore,
+	}
 }
 
 // rpc
@@ -38,11 +45,17 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 }
 
 // streaming rpc
-func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer, groupname string) error {
-
+func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) error {
+	//fetching the current group of the client from the rpc context.
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok{
+		log.Printf("didnt receive the context properly from the client..")
+	}
+	groupname := md.Get("groupname")[0]
+	
 	errch := make(chan error)
 	go receivestream(stream, s.groupstore)
-	go sendstream(stream, s.groupstore , groupname)
+	go sendstream(stream,s.groupstore, groupname)
 
 	return <-errch
 }
@@ -89,12 +102,12 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			group := req.GetUnlike().Group
 			msgId := req.GetUnlike().Messageid
 			user := req.GetUnlike().User
-			likemessage := &pb.LikeMessage{
+			unlikemessage := &pb.UnLikeMessage{
 				Group:     group,
 				Messageid: msgId,
 				User:      user,
 			}
-			groupstore.LikeMessage(likemessage)
+			groupstore.UnLikeMessage(unlikemessage)
 			if err != nil {
 				log.Printf("some error occured in unliking the message: %w", err)
 			}
@@ -119,8 +132,9 @@ func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore ,gr
 			log.Printf("error sending group to client %w", err)
 		}
 		res := &pb.GroupChatResponse{
-			Group: group,
+			Group:group,
 		}
 		stream.Send(res)
+		log.Printf("sending group data of: %s", groupname)
 	}
 }

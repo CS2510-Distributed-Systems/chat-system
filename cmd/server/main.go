@@ -19,7 +19,8 @@ func main() {
 	port := *portArg
 
 	grpcserver := grpc.NewServer()
-	chatserver := &service.ChatServiceServer{}
+	groupstore := service.NewInMemoryGroupStore()
+	chatserver := service.NewChatServiceServer(groupstore)
 	userstore := service.NewInMemoryUserStore()
 	authserver := service.NewUserAuthServiceServer(userstore)
 	pb.RegisterChatServiceServer(grpcserver, chatserver)

@@ -17,7 +17,7 @@ type GroupStore interface {
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(message_details *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
-	UnLikeMessage(unlike *pb.LikeMessage) error
+	UnLikeMessage(unlike *pb.UnLikeMessage) error
 	
 }
 

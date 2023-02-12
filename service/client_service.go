@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
 	// grpc "google.golang.org/grpc"
 	// codes "google.golang.org/grpc/codes"
 	// status "google.golang.org/grpc/status"
@@ -76,10 +77,11 @@ func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse
 }
 
 func GroupChat(client *ChatServiceClient) error {
+	//adding grouname to metadata
+	md := metadata.Pairs("groupname",client.clientstore.GetGroup().Groupname)
+	ctx := metadata.NewOutgoingContext(context.Background(),md)
 
-	ctx := context.Background()
-
-	stream, err := client.service.GroupChat(ctx, client.clientstore.GetGroup().GetGroupname)
+	stream, err := client.service.GroupChat(ctx)
 	if err != nil {
 		return err
 	}
