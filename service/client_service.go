@@ -96,10 +96,10 @@ func SendMessage(message_data *pb.AppendRequest, client pb.MessageServiceClient)
 }
 
 func LikeMessage(like_data *pb.LikeRequest, client pb.LikeServiceClient) (*pb.LikeResponse, error) {
-	client.LikeMessage(context.Background(), like_data)
-	return &pb.LikeResponse{Liked: true}, nil
+	resp, err := client.LikeMessage(context.Background(), like_data)
+	return resp, err
 }
 func UnLikeMessage(unlike_data *pb.LikeRequest, client pb.UnLikeServiceClient) (*pb.LikeResponse, error) {
-	client.UnLikeMessage(context.Background(), unlike_data)
-	return &pb.LikeResponse{Liked: true}, nil
+	resp, err := client.UnLikeMessage(context.Background(), unlike_data)
+	return resp, err
 }

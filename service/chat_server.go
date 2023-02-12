@@ -91,8 +91,8 @@ func (s *LikeServiceServer) LikeMessage(ctx context.Context, req *pb.LikeRequest
 		Messageid: message_id,
 		User:      user_data,
 	}
-	s.group_store.LikeMessage(like_data)
-	return &pb.LikeResponse{Liked: true}, nil
+	err := s.group_store.LikeMessage(like_data)
+	return &pb.LikeResponse{Liked: true}, err
 }
 func (s *UnLikeServiceServer) UnLikeMessage(ctx context.Context, req *pb.LikeRequest) (*pb.LikeResponse, error) {
 	unlike_data_req := req.GetLikemessage()
@@ -104,6 +104,6 @@ func (s *UnLikeServiceServer) UnLikeMessage(ctx context.Context, req *pb.LikeReq
 		Messageid: message_id,
 		User:      user_data,
 	}
-	s.group_store.UnLikeMessage(unlike_data)
-	return &pb.LikeResponse{Liked: true}, nil
+	err := s.group_store.UnLikeMessage(unlike_data)
+	return &pb.LikeResponse{Liked: true}, err
 }

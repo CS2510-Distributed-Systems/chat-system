@@ -109,7 +109,7 @@ func main() {
 				message := strings.TrimSpace(args[1])
 				chat_message := &pb.ChatMessage{
 					Text:  message,
-					Likes: 0,
+					Likes: make(map[string]string),
 				}
 				message_data := &pb.AppendChat{
 					User:    &client_details,
@@ -156,6 +156,7 @@ func main() {
 				log.Printf("Failed to unlike message: %v", err)
 			}
 			print(resp)
+
 		default:
 			log.Printf("incorrect command, please enter again\n")
 		}

@@ -92,7 +92,7 @@ func (group_master *InMemoryGroupStore) AppendMessage(message_details *pb.Append
 	Message_id := strconv.Itoa(len(group_master.Group[message_details.Group.Groupname].Messages))
 	messagedata := &pb.ChatMessage{
 		Text:  message_details.Message.Text,
-		Likes: 0,
+		Likes: make(map[string]string),
 	}
 	message_data := &pb.MessageDetails{
 		User:        message_details.User,
@@ -109,25 +109,40 @@ func (group_master *InMemoryGroupStore) AppendMessage(message_details *pb.Append
 func (group_master *InMemoryGroupStore) LikeMessage(like_data *pb.LikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	if like_data.User.Name == group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].User.Name {
-		return errors.New("Cannot like your own message")
+	if group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid] != nil {
+		if like_data.User.Name == group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].User.Name {
+			return errors.New("Cannot like your own message")
+		} else {
+			if group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes[like_data.User.Id] == "" {
+				group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes[like_data.User.Id] = like_data.User.Name
+				log.Println(len(group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes))
+				return nil
+			} else {
+				return errors.New("Message already liked.")
+			}
+		}
 	} else {
-		group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes++
-		log.Println(group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes)
-		return nil
+		return errors.New("Please provide valid message id")
 	}
+
 }
 func (group_master *InMemoryGroupStore) UnLikeMessage(unlike_data *pb.LikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	if unlike_data.User.Name == group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].User.Name {
-		return errors.New("Cannot unlike your own message")
-	} else {
-		if group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes > 0 {
-			group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes--
+	if group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid] != nil {
+		if unlike_data.User.Name == group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].User.Name {
+			return errors.New("Cannot unlike your own message")
+		} else {
+			if group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes[unlike_data.User.Id] != "" {
+				delete(group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes, unlike_data.User.Id)
+				log.Println(len(group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes))
+				return nil
+			} else {
+				return errors.New("Cannot unlike a message which isn't liked initially")
+			}
 		}
-		log.Println(group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes)
-		return nil
+	} else {
+		return errors.New("Please provide valid message id.")
 	}
 
 }
