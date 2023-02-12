@@ -51,6 +51,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 
 	group := req.GetJoinchat()
 	log.Printf("receive a group join request with name: %s", group.Groupname)
+	CheckUserCurrentGroup(s, req)
 	group_details, err := s.group_store.JoinGroup(group.Groupname, group.User)
 	//save the group details in the group store
 	log.Println(group_details)
@@ -62,6 +63,11 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 		Group: group_details,
 	}
 	return res, nil
+}
+
+func CheckUserCurrentGroup(s *ChatServiceServer, req *pb.JoinRequest) {
+	user_data := req.Joinchat.GetUser()
+	s.group_store.RemoveUserFromCurrentGroup(user_data)
 }
 
 func (s *MessageServiceServer) SendMessage(ctx context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
@@ -106,4 +112,9 @@ func (s *UnLikeServiceServer) UnLikeMessage(ctx context.Context, req *pb.LikeReq
 	}
 	err := s.group_store.UnLikeMessage(unlike_data)
 	return &pb.LikeResponse{Liked: true}, err
+}
+
+func (s *ChatServiceServer) TerminateClientSession(ctx context.Context, req *pb.User) (*pb.TerminateResponse, error) {
+	s.group_store.RemoveUserFromCurrentGroup(req)
+	return &pb.TerminateResponse{Status: true}, nil
 }

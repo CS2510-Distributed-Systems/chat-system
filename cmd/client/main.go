@@ -64,13 +64,15 @@ func main() {
 
 		args := strings.Split(msg, " ")
 		cmd := strings.TrimSpace(args[0])
+		//args[1] = strings.Join(args[1:], " ")
+		argument := strings.Join(args[1:], " ")
 
 		switch cmd {
 		case "u":
 			if client_details.Name != "" {
 				log.Println("Please logout from current user session and try again.")
 			} else {
-				username := strings.TrimSpace(args[1])
+				username := strings.TrimSpace(argument)
 				resp, err := service.UserLogin(username, authclient)
 				client_details.Id = resp.User.Id
 				client_details.Name = resp.User.Name
@@ -82,10 +84,8 @@ func main() {
 		case "j":
 			if client_details.Name == "" {
 				log.Println("Please login first to join a group.")
-			} else if current_group_details.Groupname != "" {
-				log.Println("Please exit from current group to join another group.")
 			} else {
-				groupname := strings.TrimSpace(args[1])
+				groupname := strings.TrimSpace(argument)
 				user_data := &pb.User{
 					Id:   client_details.Id,
 					Name: client_details.Name,
@@ -106,7 +106,7 @@ func main() {
 			} else if current_group_details.Groupname == "" {
 				log.Println("Please join a group to send a message")
 			} else {
-				message := strings.TrimSpace(args[1])
+				message := strings.TrimSpace(argument)
 				chat_message := &pb.ChatMessage{
 					Text:  message,
 					Likes: make(map[string]string),
@@ -127,35 +127,61 @@ func main() {
 			}
 
 		case "l":
-			messageid := strings.TrimSpace(args[1])
-			like_message_data := &pb.LikeMessage{
-				User:      &client_details,
-				Group:     current_group_details,
-				Messageid: messageid,
+			if client_details.Name == "" {
+				log.Println("Please login first to join a group.")
+			} else if current_group_details.Groupname == "" {
+				log.Println("Please join a group to send a message")
+			} else {
+				messageid := strings.TrimSpace(argument)
+				like_message_data := &pb.LikeMessage{
+					User:      &client_details,
+					Group:     current_group_details,
+					Messageid: messageid,
+				}
+				like_data := &pb.LikeRequest{
+					Likemessage: like_message_data,
+				}
+				resp, err := service.LikeMessage(like_data, likeclient)
+				if err != nil {
+					log.Printf("Failed to like message: %v", err)
+				}
+				print(resp)
 			}
-			like_data := &pb.LikeRequest{
-				Likemessage: like_message_data,
-			}
-			resp, err := service.LikeMessage(like_data, likeclient)
-			if err != nil {
-				log.Printf("Failed to like message: %v", err)
-			}
-			print(resp)
+
 		case "r":
-			messageid := strings.TrimSpace(args[1])
-			unlike_message_data := &pb.LikeMessage{
-				User:      &client_details,
-				Group:     current_group_details,
-				Messageid: messageid,
+			if client_details.Name == "" {
+				log.Println("Please login first to join a group.")
+			} else if current_group_details.Groupname == "" {
+				log.Println("Please join a group to send a message")
+			} else {
+				messageid := strings.TrimSpace(argument)
+				unlike_message_data := &pb.LikeMessage{
+					User:      &client_details,
+					Group:     current_group_details,
+					Messageid: messageid,
+				}
+				unlike_data := &pb.LikeRequest{
+					Likemessage: unlike_message_data,
+				}
+				resp, err := service.UnLikeMessage(unlike_data, unlikeclient)
+				if err != nil {
+					log.Printf("Failed to unlike message: %v", err)
+				}
+				print(resp)
 			}
-			unlike_data := &pb.LikeRequest{
-				Likemessage: unlike_message_data,
+
+		case "q":
+			if client_details.Name != "" {
+				resp := service.TerminateClientSession(&client_details, chatclient)
+				if resp.Status {
+					conn.Close()
+					log.Fatal("Exited program.")
+				} else {
+					log.Println("Failed to exit program. Please try again.")
+				}
+			} else {
+				log.Println("You aren't logged into any program.")
 			}
-			resp, err := service.UnLikeMessage(unlike_data, unlikeclient)
-			if err != nil {
-				log.Printf("Failed to unlike message: %v", err)
-			}
-			print(resp)
 
 		default:
 			log.Printf("incorrect command, please enter again\n")

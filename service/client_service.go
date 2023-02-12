@@ -103,3 +103,11 @@ func UnLikeMessage(unlike_data *pb.LikeRequest, client pb.UnLikeServiceClient) (
 	resp, err := client.UnLikeMessage(context.Background(), unlike_data)
 	return resp, err
 }
+
+func TerminateClientSession(user_data *pb.User, client pb.ChatServiceClient) *pb.TerminateResponse {
+	resp, err := client.TerminateClientSession(context.Background(), user_data)
+	if err != nil {
+		log.Printf("Failed to terminate session: %v", err)
+	}
+	return resp
+}

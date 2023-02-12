@@ -5,6 +5,7 @@ option go_package = "./pb";
 package chat;
 
 import "chat.proto";
+import "user.proto";
 import "google/protobuf/timestamp.proto";
 
 message JoinRequest { JoinChat joinchat = 1; }
@@ -30,12 +31,17 @@ message UnLikeResponse {
   string id = 1;
   Group group = 2;
 }
+message TerminateResponse{
+  bool status = 1;
+}
 
 service ChatService {
   rpc JoinGroup(JoinRequest) returns (JoinResponse) {};
   // rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
   // rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
   // rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+  rpc TerminateClientSession(User) returns (TerminateResponse){};
+
 }
 service MessageService {
   rpc SendMessage(AppendRequest) returns (AppendResponse){};

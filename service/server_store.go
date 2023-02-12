@@ -20,6 +20,7 @@ type GroupStore interface {
 	AppendMessage(message_details *pb.AppendChat) (*pb.AppendResponse, error)
 	LikeMessage(like_data *pb.LikeMessage) error
 	UnLikeMessage(unlike_data *pb.LikeMessage) error
+	RemoveUserFromCurrentGroup(curr_req *pb.User)
 }
 
 type InMemoryUserStore struct {
@@ -145,4 +146,13 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlike_data *pb.LikeMessag
 		return errors.New("Please provide valid message id.")
 	}
 
+}
+
+func (group_master *InMemoryGroupStore) RemoveUserFromCurrentGroup(curr_req *pb.User) {
+	for _, value := range group_master.Group {
+		if value.Participants[curr_req.Id] != "" {
+			delete(value.Participants, curr_req.Id)
+			break
+		}
+	}
 }

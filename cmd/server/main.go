@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// Process commandline arguments
-	portArg := flag.Int("port", 80, "the server port")
+	portArg := flag.Int("port", 12000, "the server port")
 	flag.Parse()
 	port := *portArg
 
@@ -32,7 +32,7 @@ func main() {
 	pb.RegisterLikeServiceServer(grpcserver, likeserver)
 	pb.RegisterUnLikeServiceServer(grpcserver, unlikeserver)
 	log.Printf("start server on port: %d", port)
-	Listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	Listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(port))
 	if err != nil {
 		log.Fatal("cannot start server: %w", err)
 	}

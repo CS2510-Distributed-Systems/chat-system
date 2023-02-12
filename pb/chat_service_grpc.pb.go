@@ -23,6 +23,10 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
 	JoinGroup(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
+	// rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
+	// rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+	// rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+	TerminateClientSession(ctx context.Context, in *User, opts ...grpc.CallOption) (*TerminateResponse, error)
 }
 
 type chatServiceClient struct {
@@ -42,11 +46,24 @@ func (c *chatServiceClient) JoinGroup(ctx context.Context, in *JoinRequest, opts
 	return out, nil
 }
 
+func (c *chatServiceClient) TerminateClientSession(ctx context.Context, in *User, opts ...grpc.CallOption) (*TerminateResponse, error) {
+	out := new(TerminateResponse)
+	err := c.cc.Invoke(ctx, "/chat.ChatService/TerminateClientSession", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations should embed UnimplementedChatServiceServer
 // for forward compatibility
 type ChatServiceServer interface {
 	JoinGroup(context.Context, *JoinRequest) (*JoinResponse, error)
+	// rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
+	// rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+	// rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+	TerminateClientSession(context.Context, *User) (*TerminateResponse, error)
 }
 
 // UnimplementedChatServiceServer should be embedded to have forward compatible implementations.
@@ -55,6 +72,9 @@ type UnimplementedChatServiceServer struct {
 
 func (UnimplementedChatServiceServer) JoinGroup(context.Context, *JoinRequest) (*JoinResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinGroup not implemented")
+}
+func (UnimplementedChatServiceServer) TerminateClientSession(context.Context, *User) (*TerminateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TerminateClientSession not implemented")
 }
 
 // UnsafeChatServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -86,6 +106,24 @@ func _ChatService_JoinGroup_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_TerminateClientSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(User)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).TerminateClientSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chat.ChatService/TerminateClientSession",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).TerminateClientSession(ctx, req.(*User))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -96,6 +134,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "JoinGroup",
 			Handler:    _ChatService_JoinGroup_Handler,
+		},
+		{
+			MethodName: "TerminateClientSession",
+			Handler:    _ChatService_TerminateClientSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
