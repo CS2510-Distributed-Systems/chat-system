@@ -1,4 +1,4 @@
-syntax="proto3";
+syntax = "proto3";
 
 option go_package = "./pb";
 
@@ -6,18 +6,14 @@ package chat;
 
 import "user.proto";
 
-message LoginRequest{
-    User user =1;
+message LoginRequest { User user = 1; }
+
+message LoginResponse { string id = 1; }
+
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse) {};
 }
 
-message LoginResponse {
-    string id =1;
-}
-
-service AuthService{
-    rpc Login(LoginRequest) returns (LoginResponse) {};
-}
-
-service NewUserCreate{
-    rpc NewUserCreate(LoginRequest) returns (LoginResponse) {};
+service NewUserCreate {
+  rpc NewUserCreate(LoginRequest) returns (LoginResponse) {};
 }

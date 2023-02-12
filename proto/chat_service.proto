@@ -5,37 +5,23 @@ option go_package = "./pb";
 package chat;
 
 import "chat.proto";
-import "group.proto";
-import "google/protobuf/timestamp.proto";
 
 message JoinRequest { JoinChat joinchat = 1; }
 
 message JoinResponse { Group group = 1; }
 
-message AppendRequest {
-  AppendChat appendchat = 1;
-  google.protobuf.Timestamp appended_at = 2;
+message GroupChatRequest {
+  oneof action {
+    AppendChat append = 1;
+    LikeMessage like = 2;
+    UnLikeMessage unlike = 3;
+    PrintChat print = 4;
+  }
 }
 
-message AppendResponse { string id = 1; }
-
-message LikeRequest { LikeMessage likemessage = 1; }
-
-message LikeResponse {
-  string id = 1;
-  Group group = 2;
-}
-
-message UnLikeRequest { UnLikeMessage Unlikemessage = 1; }
-
-message UnLikeResponse {
-  string id = 1;
-  Group group = 2;
-}
+message GroupChatResponse { Group group = 1; }
 
 service ChatService {
   rpc JoinGroup(JoinRequest) returns (JoinResponse) {};
-  // rpc AppendMessageInGroup(AppendRequest) returns (AppendResponse) {};
-  // rpc LikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
-  // rpc UnLikeMessageInGroup(LikeRequest) returns (LikeResponse) {};
+  rpc GroupChat(stream GroupChatRequest) returns (stream GroupChatResponse) {};
 }

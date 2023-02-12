@@ -9,8 +9,4 @@ message User {
     string name =2;
 }
 
-message NewUser {
-    User user = 1;
-    string password=2;
-}
 

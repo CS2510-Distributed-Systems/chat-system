@@ -9,12 +9,14 @@ import (
 
 	"chat-system/pb"
 	"chat-system/service"
-	"strings"
+	"fmt"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
+
+	// "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
+	// "google.golang.org/grpc/status"
+	"strings"
 )
 
 func main() {
@@ -37,66 +39,55 @@ func main() {
 
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
 	// defer conn.Close()
-	chatclient := pb.NewChatServiceClient(conn)
+	clientstore := service.NewInMemoryClientStore()
+	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), clientstore)
 	authclient := pb.NewAuthServiceClient(conn)
 
+	_, err = readInput(chatclient, authclient)
+	conn.Close()
+
+}
+
+func readInput(chatclient *service.ChatServiceClient, authclient pb.AuthServiceClient) (uint32, error) {
 	for {
 		log.Printf("Enter the message:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatalf("Cannot read the message, please enter again\n")
 		}
-
 		msg = strings.Trim(msg, "\r\n")
-
 		args := strings.Split(msg, " ")
 		cmd := strings.TrimSpace(args[0])
 
 		switch cmd {
+		case "q":
+			//closes the program
+			fmt.Println("close the program")
+			return 1, nil
+
 		case "u":
+			//user login
 			username := strings.TrimSpace(args[1])
 			_, err := service.UserLogin(username, authclient)
 			if err != nil {
 				log.Printf("Failed to login: %v", err)
+
 			}
-			
 		case "j":
+			//join the group
 			groupname := strings.TrimSpace(args[1])
 			err = service.JoinGroup(groupname, chatclient)
-		default:
-			log.Printf("incorrect command, please enter again\n")
-
-		}
-
-	}
-
-}
-
-func readInput(client pb.ChatServiceClient) error {
-	for {
-		log.Printf("Enter the message:")
-		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			log.Fatalf("Cannot read the message, please enter again\n")
-		}
-
-		msg = strings.Trim(msg, "\r\n")
-
-		args := strings.Split(msg, " ")
-		cmd := strings.TrimSpace(args[0])
-
-		switch cmd {
-		case "j":
-			groupname := strings.TrimSpace(args[1])
-			err = service.JoinGroup(groupname, client)
 			if err != nil {
-				return status.Errorf(codes.Unavailable, "It faced few errors: %w", err)
-
+				log.Printf("Failed to create a group: %v", err)
 			}
+			//start stream
+			log.Printf("starting streaming")
+			service.GroupChat(chatclient)
 		default:
 			log.Printf("incorrect command, please enter again\n")
 
 		}
 
 	}
+
 }

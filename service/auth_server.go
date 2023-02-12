@@ -36,18 +36,4 @@ func (s *UserAuthServiceServer) Login(ctx context.Context, req *pb.LoginRequest)
 	return res, nil
 }
 
-func (s *UserAuthServiceServer) NewUserCreate(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	user_name := req.User.Name
-	log.Printf("Creating new user: %v", user_name)
-	user_details := &pb.User{
-		Id:   uuid.New().String(),
-		Name: user_name,
-	}
-	//Server_Storage.user_auth[user_details.Id] = user_details
-	//user_memory.user_auth[user_details.Id] = user_details
-	response := pb.LoginResponse{
-		Id: user_details.Id,
-	}
-	//log.Println(Server_Storage)
-	return &response, nil
-}
+

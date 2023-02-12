@@ -5,29 +5,43 @@ option go_package = "./pb";
 package chat;
 
 import "user.proto";
-import "message.proto";
-import "group.proto";
 
+message ChatMessage {
+  string text = 1;
+  uint32 likes = 2;
+}
+
+message Group {
+  string groupID = 1;
+  string groupname = 2;
+  repeated User participants = 3;
+  repeated ChatMessage messages = 4;
+}
 
 message JoinChat {
-    User user = 2;
-    string groupname=4;
-  }
+  User user = 1;
+  string groupname = 2;
+}
 
 message AppendChat {
-  User user = 2;
-  ChatMessage message = 4;
-  Group group = 5;
+  User user = 1;
+  ChatMessage message = 2;
+  Group group = 3;
 }
 
-message LikeMessage{
-    User user = 2;
-    uint32 messageid =4;
-    Group group = 5;
+message LikeMessage {
+  User user = 1;
+  uint32 messageid = 2;
+  Group group = 3;
 }
 
-message UnLikeMessage{
-    User user = 2;
-    uint32 messageid =4;
-    Group group = 5;
+message UnLikeMessage {
+  User user = 1;
+  uint32 messageid = 2;
+  Group group = 3;
+}
+
+message PrintChat {
+  User user = 1;
+  string groupname = 2;
 }
