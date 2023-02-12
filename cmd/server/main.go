@@ -19,11 +19,18 @@ func main() {
 	port := *portArg
 
 	grpcserver := grpc.NewServer()
-	chatserver := &service.ChatServiceServer{}
+	groupstore := service.NewInMemoryGroupStore()
+	chatserver := service.NewChatServiceServer(groupstore)
+	messageserver := service.NewMessageServiceServer(groupstore)
+	likeserver := service.NewLikeServiceServer(groupstore)
+	unlikeserver := service.NewUnLikeServiceServer(groupstore)
 	userstore := service.NewInMemoryUserStore()
 	authserver := service.NewUserAuthServiceServer(userstore)
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
 	pb.RegisterAuthServiceServer(grpcserver, authserver)
+	pb.RegisterMessageServiceServer(grpcserver, messageserver)
+	pb.RegisterLikeServiceServer(grpcserver, likeserver)
+	pb.RegisterUnLikeServiceServer(grpcserver, unlikeserver)
 	log.Printf("start server on port: %d", port)
 	Listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {

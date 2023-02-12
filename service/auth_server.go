@@ -11,7 +11,6 @@ import (
 type UserAuthServiceServer struct {
 	pb.UnimplementedAuthServiceServer
 	store UserStore
-	
 }
 
 func NewUserAuthServiceServer(userstore UserStore) pb.AuthServiceServer {
@@ -19,7 +18,6 @@ func NewUserAuthServiceServer(userstore UserStore) pb.AuthServiceServer {
 		store: userstore,
 	}
 }
-
 
 func (s *UserAuthServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	user_name := req.User.GetName()
@@ -30,7 +28,7 @@ func (s *UserAuthServiceServer) Login(ctx context.Context, req *pb.LoginRequest)
 	}
 	s.store.SaveUser(newUser)
 	res := &pb.LoginResponse{
-		Id: req.User.GetId(),
+		User: newUser,
 	}
 
 	return res, nil
@@ -46,7 +44,7 @@ func (s *UserAuthServiceServer) NewUserCreate(ctx context.Context, req *pb.Login
 	//Server_Storage.user_auth[user_details.Id] = user_details
 	//user_memory.user_auth[user_details.Id] = user_details
 	response := pb.LoginResponse{
-		Id: user_details.Id,
+		User: user_details,
 	}
 	//log.Println(Server_Storage)
 	return &response, nil

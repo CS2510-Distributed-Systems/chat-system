@@ -25,14 +25,14 @@ func NewChatServiceClient(conn *grpc.ClientConn) *chatServiceClient {
 	}
 }
 
-func JoinGroup(groupname string, client pb.ChatServiceClient) error {
+func JoinGroup(groupname string, user_data pb.User, client pb.ChatServiceClient) (*pb.JoinResponse, error) {
 	ctx := context.Background()
 
 	joinchat := &pb.JoinChat{
-		Groupname: "kothiz",
+		Groupname: groupname,
 		User: &pb.User{
-			Name: "Dilip",
-			Id:   uuid.New().String(),
+			Name: user_data.Name,
+			Id:   user_data.Id,
 		}}
 
 	req := &pb.JoinRequest{
@@ -41,12 +41,12 @@ func JoinGroup(groupname string, client pb.ChatServiceClient) error {
 	// fmt.Printf("a group is created in server: %s\n",joinchat )
 	res, err := client.JoinGroup(ctx, req)
 	if err != nil {
-		return err
+		return res, err
 	}
 
 	fmt.Printf("a group is created in server with groupid: %s", res.GetGroup())
 
-	return nil
+	return res, nil
 
 }
 
@@ -83,6 +83,23 @@ func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
 	}
-	log.Printf("User %v Logged in succesfully.",res.GetId())
+	log.Printf("User %v Logged in succesfully.", res.User.Id)
 	return res, nil
+}
+
+func SendMessage(message_data *pb.AppendRequest, client pb.MessageServiceClient) (*pb.AppendResponse, error) {
+	resp, err := client.SendMessage(context.Background(), message_data)
+	if err != nil {
+		log.Printf("Failed to send message: %v", err)
+	}
+	return resp, nil
+}
+
+func LikeMessage(like_data *pb.LikeRequest, client pb.LikeServiceClient) (*pb.LikeResponse, error) {
+	client.LikeMessage(context.Background(), like_data)
+	return &pb.LikeResponse{Liked: true}, nil
+}
+func UnLikeMessage(unlike_data *pb.LikeRequest, client pb.UnLikeServiceClient) (*pb.LikeResponse, error) {
+	client.UnLikeMessage(context.Background(), unlike_data)
+	return &pb.LikeResponse{Liked: true}, nil
 }

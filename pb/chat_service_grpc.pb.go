@@ -101,3 +101,255 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "chat_service.proto",
 }
+
+// MessageServiceClient is the client API for MessageService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MessageServiceClient interface {
+	SendMessage(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
+}
+
+type messageServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMessageServiceClient(cc grpc.ClientConnInterface) MessageServiceClient {
+	return &messageServiceClient{cc}
+}
+
+func (c *messageServiceClient) SendMessage(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
+	out := new(AppendResponse)
+	err := c.cc.Invoke(ctx, "/chat.MessageService/SendMessage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MessageServiceServer is the server API for MessageService service.
+// All implementations should embed UnimplementedMessageServiceServer
+// for forward compatibility
+type MessageServiceServer interface {
+	SendMessage(context.Context, *AppendRequest) (*AppendResponse, error)
+}
+
+// UnimplementedMessageServiceServer should be embedded to have forward compatible implementations.
+type UnimplementedMessageServiceServer struct {
+}
+
+func (UnimplementedMessageServiceServer) SendMessage(context.Context, *AppendRequest) (*AppendResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
+}
+
+// UnsafeMessageServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MessageServiceServer will
+// result in compilation errors.
+type UnsafeMessageServiceServer interface {
+	mustEmbedUnimplementedMessageServiceServer()
+}
+
+func RegisterMessageServiceServer(s grpc.ServiceRegistrar, srv MessageServiceServer) {
+	s.RegisterService(&MessageService_ServiceDesc, srv)
+}
+
+func _MessageService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessageServiceServer).SendMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chat.MessageService/SendMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessageServiceServer).SendMessage(ctx, req.(*AppendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MessageService_ServiceDesc is the grpc.ServiceDesc for MessageService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MessageService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chat.MessageService",
+	HandlerType: (*MessageServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SendMessage",
+			Handler:    _MessageService_SendMessage_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "chat_service.proto",
+}
+
+// LikeServiceClient is the client API for LikeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type LikeServiceClient interface {
+	LikeMessage(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error)
+}
+
+type likeServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewLikeServiceClient(cc grpc.ClientConnInterface) LikeServiceClient {
+	return &likeServiceClient{cc}
+}
+
+func (c *likeServiceClient) LikeMessage(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error) {
+	out := new(LikeResponse)
+	err := c.cc.Invoke(ctx, "/chat.LikeService/LikeMessage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// LikeServiceServer is the server API for LikeService service.
+// All implementations should embed UnimplementedLikeServiceServer
+// for forward compatibility
+type LikeServiceServer interface {
+	LikeMessage(context.Context, *LikeRequest) (*LikeResponse, error)
+}
+
+// UnimplementedLikeServiceServer should be embedded to have forward compatible implementations.
+type UnimplementedLikeServiceServer struct {
+}
+
+func (UnimplementedLikeServiceServer) LikeMessage(context.Context, *LikeRequest) (*LikeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LikeMessage not implemented")
+}
+
+// UnsafeLikeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LikeServiceServer will
+// result in compilation errors.
+type UnsafeLikeServiceServer interface {
+	mustEmbedUnimplementedLikeServiceServer()
+}
+
+func RegisterLikeServiceServer(s grpc.ServiceRegistrar, srv LikeServiceServer) {
+	s.RegisterService(&LikeService_ServiceDesc, srv)
+}
+
+func _LikeService_LikeMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LikeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LikeServiceServer).LikeMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chat.LikeService/LikeMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LikeServiceServer).LikeMessage(ctx, req.(*LikeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// LikeService_ServiceDesc is the grpc.ServiceDesc for LikeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LikeService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chat.LikeService",
+	HandlerType: (*LikeServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "LikeMessage",
+			Handler:    _LikeService_LikeMessage_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "chat_service.proto",
+}
+
+// UnLikeServiceClient is the client API for UnLikeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type UnLikeServiceClient interface {
+	UnLikeMessage(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error)
+}
+
+type unLikeServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewUnLikeServiceClient(cc grpc.ClientConnInterface) UnLikeServiceClient {
+	return &unLikeServiceClient{cc}
+}
+
+func (c *unLikeServiceClient) UnLikeMessage(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*LikeResponse, error) {
+	out := new(LikeResponse)
+	err := c.cc.Invoke(ctx, "/chat.UnLikeService/UnLikeMessage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UnLikeServiceServer is the server API for UnLikeService service.
+// All implementations should embed UnimplementedUnLikeServiceServer
+// for forward compatibility
+type UnLikeServiceServer interface {
+	UnLikeMessage(context.Context, *LikeRequest) (*LikeResponse, error)
+}
+
+// UnimplementedUnLikeServiceServer should be embedded to have forward compatible implementations.
+type UnimplementedUnLikeServiceServer struct {
+}
+
+func (UnimplementedUnLikeServiceServer) UnLikeMessage(context.Context, *LikeRequest) (*LikeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnLikeMessage not implemented")
+}
+
+// UnsafeUnLikeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to UnLikeServiceServer will
+// result in compilation errors.
+type UnsafeUnLikeServiceServer interface {
+	mustEmbedUnimplementedUnLikeServiceServer()
+}
+
+func RegisterUnLikeServiceServer(s grpc.ServiceRegistrar, srv UnLikeServiceServer) {
+	s.RegisterService(&UnLikeService_ServiceDesc, srv)
+}
+
+func _UnLikeService_UnLikeMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LikeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UnLikeServiceServer).UnLikeMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chat.UnLikeService/UnLikeMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UnLikeServiceServer).UnLikeMessage(ctx, req.(*LikeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// UnLikeService_ServiceDesc is the grpc.ServiceDesc for UnLikeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var UnLikeService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chat.UnLikeService",
+	HandlerType: (*UnLikeServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "UnLikeMessage",
+			Handler:    _UnLikeService_UnLikeMessage_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "chat_service.proto",
+}

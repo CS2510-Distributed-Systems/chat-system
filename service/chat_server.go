@@ -4,54 +4,106 @@ import (
 	"chat-system/pb"
 	"context"
 	"log"
-
-	"github.com/google/uuid"
+	//"github.com/google/uuid"
 )
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
+	group_store GroupStore
+}
+type MessageServiceServer struct {
+	pb.UnimplementedMessageServiceServer
+	group_store GroupStore
+}
+type LikeServiceServer struct {
+	pb.UnimplementedLikeServiceServer
+	group_store GroupStore
+}
+type UnLikeServiceServer struct {
+	pb.UnimplementedUnLikeServiceServer
+	group_store GroupStore
 }
 
-func NewChatServiceServer() 
+func NewChatServiceServer(groupstore GroupStore) pb.ChatServiceServer {
+	return &ChatServiceServer{
+		group_store: groupstore,
+	}
+}
 
+func NewMessageServiceServer(groupstore GroupStore) pb.MessageServiceServer {
+	return &MessageServiceServer{
+		group_store: groupstore,
+	}
+}
+func NewLikeServiceServer(groupstore GroupStore) pb.LikeServiceServer {
+	return &LikeServiceServer{
+		group_store: groupstore,
+	}
+}
+func NewUnLikeServiceServer(groupstore GroupStore) pb.UnLikeServiceServer {
+	return &UnLikeServiceServer{
+		group_store: groupstore,
+	}
+}
 
-//rpc
+// rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 
 	group := req.GetJoinchat()
 	log.Printf("receive a group join request with name: %s", group.Groupname)
-
+	group_details, err := s.group_store.JoinGroup(group.Groupname, group.User)
 	//save the group details in the group store
-
-	newgroup := &pb.Group{
-		GroupID:   uuid.New().String(),
-		Groupname: group.Groupname,
-
-		Participants: []*pb.User{
-			{
-				Id:   uuid.New().String(),
-				Name: "Dilip",
-			},
-			{
-				Id:   uuid.New().String(),
-				Name: "Teja",
-			},
-		},
-		Messages: []*pb.ChatMessage{
-			{
-				Text:  "Hi this is a new group",
-				Likes: 0,
-			},
-			{
-				Text:  "Hi this is a again new group",
-				Likes: 1,
-			},
-		},
+	log.Println(group_details)
+	if err != nil {
+		log.Printf("Failed to join group %v", err)
 	}
-
 	log.Printf("saved laptop with name: %s", group.Groupname)
 	res := &pb.JoinResponse{
-		Group: newgroup,
+		Group: group_details,
 	}
 	return res, nil
+}
+
+func (s *MessageServiceServer) SendMessage(ctx context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
+	chat_data := req.GetAppendchat()
+	group_data := chat_data.GetGroup()
+	message_data := chat_data.GetMessage()
+	user_data := chat_data.GetUser()
+	message_details := &pb.AppendChat{
+		Group:   group_data,
+		Message: message_data,
+		User:    user_data,
+	}
+	response, err := s.group_store.AppendMessage(message_details)
+	if err != nil {
+		log.Printf("Failed to send message: %v", err)
+	}
+	return response, nil
+}
+
+func (s *LikeServiceServer) LikeMessage(ctx context.Context, req *pb.LikeRequest) (*pb.LikeResponse, error) {
+	like_data_req := req.GetLikemessage()
+	group_data := like_data_req.GetGroup()
+	message_id := like_data_req.GetMessageid()
+	user_data := like_data_req.GetUser()
+	like_data := &pb.LikeMessage{
+		Group:     group_data,
+		Messageid: message_id,
+		User:      user_data,
+	}
+	s.group_store.LikeMessage(like_data)
+	return &pb.LikeResponse{Liked: true}, nil
+}
+func (s *UnLikeServiceServer) UnLikeMessage(ctx context.Context, req *pb.LikeRequest) (*pb.LikeResponse, error) {
+	unlike_data_req := req.GetLikemessage()
+	group_data := unlike_data_req.GetGroup()
+	message_id := unlike_data_req.GetMessageid()
+	user_data := unlike_data_req.GetUser()
+	unlike_data := &pb.LikeMessage{
+		Group:     group_data,
+		Messageid: message_id,
+		User:      user_data,
+	}
+	s.group_store.UnLikeMessage(unlike_data)
+	return &pb.LikeResponse{Liked: true}, nil
 }

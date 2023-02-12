@@ -22,12 +22,12 @@ message AppendChat {
 
 message LikeMessage{
     User user = 2;
-    uint32 messageid =4;
+    string messageid =4;
     Group group = 5;
 }
 
 message UnLikeMessage{
     User user = 2;
-    uint32 messageid =4;
+    string messageid =4;
     Group group = 5;
 }

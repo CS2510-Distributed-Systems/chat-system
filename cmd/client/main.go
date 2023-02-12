@@ -12,9 +12,10 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
+	//"google.golang.org/protobuf/internal/encoding/text"
+	//"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
+	//"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -23,7 +24,17 @@ func main() {
 	portArg := flag.Int("port", 12000, "the server port")
 
 	flag.Parse()
-
+	client_details := *&pb.User{
+		Id:   "",
+		Name: "",
+	}
+	current_group_details := &pb.Group{
+		GroupID:      "",
+		Groupname:    "",
+		Participants: make(map[string]string),
+		Messages:     make(map[string]string),
+		Likes:        make(map[string]int32),
+	}
 	port := *portArg
 	serverAddr := *addrArg
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
@@ -39,6 +50,9 @@ func main() {
 	// defer conn.Close()
 	chatclient := pb.NewChatServiceClient(conn)
 	authclient := pb.NewAuthServiceClient(conn)
+	messageclient := pb.NewMessageServiceClient(conn)
+	likeclient := pb.NewLikeServiceClient(conn)
+	unlikeclient := pb.NewUnLikeServiceClient(conn)
 
 	for {
 		log.Printf("Enter the message:")
@@ -55,48 +69,110 @@ func main() {
 		switch cmd {
 		case "u":
 			username := strings.TrimSpace(args[1])
-			_, err := service.UserLogin(username, authclient)
+			resp, err := service.UserLogin(username, authclient)
+			client_details.Id = resp.User.Id
+			client_details.Name = resp.User.Name
+			log.Printf("From Console. Current client = %v", client_details.Name)
 			if err != nil {
 				log.Printf("Failed to login: %v", err)
 			}
-			
+
 		case "j":
 			groupname := strings.TrimSpace(args[1])
-			err = service.JoinGroup(groupname, chatclient)
-		default:
-			log.Printf("incorrect command, please enter again\n")
-
-		}
-
-	}
-
-}
-
-func readInput(client pb.ChatServiceClient) error {
-	for {
-		log.Printf("Enter the message:")
-		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			log.Fatalf("Cannot read the message, please enter again\n")
-		}
-
-		msg = strings.Trim(msg, "\r\n")
-
-		args := strings.Split(msg, " ")
-		cmd := strings.TrimSpace(args[0])
-
-		switch cmd {
-		case "j":
-			groupname := strings.TrimSpace(args[1])
-			err = service.JoinGroup(groupname, client)
-			if err != nil {
-				return status.Errorf(codes.Unavailable, "It faced few errors: %w", err)
-
+			user_data := &pb.User{
+				Id:   client_details.Id,
+				Name: client_details.Name,
 			}
+			resp, err := service.JoinGroup(groupname, *user_data, chatclient)
+			if err != nil {
+				log.Printf("Failed to join group: %v", err)
+			}
+			current_group_details.GroupID = resp.Group.Groupname
+			current_group_details.Groupname = resp.Group.Groupname
+			current_group_details.Participants = resp.Group.Participants
+			current_group_details.Messages = resp.Group.Messages
+		case "a":
+			message := strings.TrimSpace(args[1])
+			chat_message := &pb.ChatMessage{
+				Text:  message,
+				Likes: 0,
+			}
+			message_data := &pb.AppendChat{
+				User:    &client_details,
+				Group:   current_group_details,
+				Message: chat_message,
+			}
+			append_request := &pb.AppendRequest{
+				Appendchat: message_data,
+			}
+			resp, err := service.SendMessage(append_request, messageclient)
+			if err != nil {
+				log.Printf("Failed to send message: %v", err)
+			}
+			print(resp)
+		case "l":
+			messageid := strings.TrimSpace(args[1])
+			like_message_data := &pb.LikeMessage{
+				User:      &client_details,
+				Group:     current_group_details,
+				Messageid: messageid,
+			}
+			like_data := &pb.LikeRequest{
+				Likemessage: like_message_data,
+			}
+			resp, err := service.LikeMessage(like_data, likeclient)
+			if err != nil {
+				log.Printf("Failed to like message: %v", err)
+			}
+			print(resp)
+		case "r":
+			messageid := strings.TrimSpace(args[1])
+			unlike_message_data := &pb.LikeMessage{
+				User:      &client_details,
+				Group:     current_group_details,
+				Messageid: messageid,
+			}
+			unlike_data := &pb.LikeRequest{
+				Likemessage: unlike_message_data,
+			}
+			resp, err := service.UnLikeMessage(unlike_data, unlikeclient)
+			if err != nil {
+				log.Printf("Failed to unlike message: %v", err)
+			}
+			print(resp)
 		default:
 			log.Printf("incorrect command, please enter again\n")
-
 		}
 
 	}
+
 }
+
+// func readInput(client pb.ChatServiceClient) error {
+// 	for {
+// 		log.Printf("Enter the message:")
+// 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
+// 		if err != nil {
+// 			log.Fatalf("Cannot read the message, please enter again\n")
+// 		}
+
+// 		msg = strings.Trim(msg, "\r\n")
+
+// 		args := strings.Split(msg, " ")
+// 		cmd := strings.TrimSpace(args[0])
+
+// 		switch cmd {
+// 		case "j":
+// 			groupname := strings.TrimSpace(args[1])
+// 			err = service.JoinGroup(groupname,, client)
+// 			if err != nil {
+// 				return status.Errorf(codes.Unavailable, "It faced few errors: %w", err)
+
+// 			}
+// 		default:
+// 			log.Printf("incorrect command, please enter again\n")
+
+// 		}
+
+// 	}
+// }

@@ -11,7 +11,7 @@ message LoginRequest{
 }
 
 message LoginResponse {
-    string id =1;
+    User user =1;
 }
 
 service AuthService{
