@@ -5,7 +5,6 @@ option go_package = "./pb";
 package chat;
 
 import "chat.proto";
-import "group.proto";
 import "google/protobuf/timestamp.proto";
 
 message JoinRequest { JoinChat joinchat = 1; }

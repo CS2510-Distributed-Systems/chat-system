@@ -2,8 +2,10 @@ package service
 
 import (
 	"chat-system/pb"
+	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -72,8 +74,7 @@ func (group_master *InMemoryGroupStore) JoinGroup(group_name string, user_data *
 			GroupID:      uuid.New().String(),
 			Groupname:    group_name,
 			Participants: make(map[string]string),
-			Messages:     make(map[string]string),
-			Likes:        make(map[string]int32),
+			Messages:     make(map[string]*pb.MessageDetails),
 		}
 		group_master.CreateGroup(new_group)
 		log.Println(group_master)
@@ -88,8 +89,16 @@ func (group_master *InMemoryGroupStore) JoinGroup(group_name string, user_data *
 func (group_master *InMemoryGroupStore) AppendMessage(message_details *pb.AppendChat) (*pb.AppendResponse, error) {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	Message_id := uuid.New().String()
-	group_master.Group[message_details.Group.Groupname].Messages[Message_id] = message_details.Message.Text
+	Message_id := strconv.Itoa(len(group_master.Group[message_details.Group.Groupname].Messages))
+	messagedata := &pb.ChatMessage{
+		Text:  message_details.Message.Text,
+		Likes: 0,
+	}
+	message_data := &pb.MessageDetails{
+		User:        message_details.User,
+		Messagedata: messagedata,
+	}
+	group_master.Group[message_details.Group.Groupname].Messages[Message_id] = message_data
 	response := &pb.AppendResponse{
 		Id: Message_id,
 	}
@@ -100,16 +109,25 @@ func (group_master *InMemoryGroupStore) AppendMessage(message_details *pb.Append
 func (group_master *InMemoryGroupStore) LikeMessage(like_data *pb.LikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	group_master.Group[like_data.Group.Groupname].Likes[like_data.Messageid]++
-	log.Println(group_master.Group[like_data.Group.Groupname].Likes[like_data.Messageid])
-	return nil
+	if like_data.User.Name == group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].User.Name {
+		return errors.New("Cannot like your own message")
+	} else {
+		group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes++
+		log.Println(group_master.Group[like_data.Group.Groupname].Messages[like_data.Messageid].Messagedata.Likes)
+		return nil
+	}
 }
 func (group_master *InMemoryGroupStore) UnLikeMessage(unlike_data *pb.LikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	if group_master.Group[unlike_data.Group.Groupname].Likes[unlike_data.Messageid] > 0 {
-		group_master.Group[unlike_data.Group.Groupname].Likes[unlike_data.Messageid]--
+	if unlike_data.User.Name == group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].User.Name {
+		return errors.New("Cannot unlike your own message")
+	} else {
+		if group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes > 0 {
+			group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes--
+		}
+		log.Println(group_master.Group[unlike_data.Group.Groupname].Messages[unlike_data.Messageid].Messagedata.Likes)
+		return nil
 	}
-	log.Println(group_master.Group[unlike_data.Group.Groupname].Likes[unlike_data.Messageid])
-	return nil
+
 }

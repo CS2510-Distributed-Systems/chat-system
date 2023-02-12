@@ -32,8 +32,7 @@ func main() {
 		GroupID:      "",
 		Groupname:    "",
 		Participants: make(map[string]string),
-		Messages:     make(map[string]string),
-		Likes:        make(map[string]int32),
+		Messages:     make(map[string]*pb.MessageDetails),
 	}
 	port := *portArg
 	serverAddr := *addrArg
@@ -68,48 +67,65 @@ func main() {
 
 		switch cmd {
 		case "u":
-			username := strings.TrimSpace(args[1])
-			resp, err := service.UserLogin(username, authclient)
-			client_details.Id = resp.User.Id
-			client_details.Name = resp.User.Name
-			log.Printf("From Console. Current client = %v", client_details.Name)
-			if err != nil {
-				log.Printf("Failed to login: %v", err)
+			if client_details.Name != "" {
+				log.Println("Please logout from current user session and try again.")
+			} else {
+				username := strings.TrimSpace(args[1])
+				resp, err := service.UserLogin(username, authclient)
+				client_details.Id = resp.User.Id
+				client_details.Name = resp.User.Name
+				log.Printf("From Console. Current client = %v", client_details.Name)
+				if err != nil {
+					log.Printf("Failed to login: %v", err)
+				}
+			}
+		case "j":
+			if client_details.Name == "" {
+				log.Println("Please login first to join a group.")
+			} else if current_group_details.Groupname != "" {
+				log.Println("Please exit from current group to join another group.")
+			} else {
+				groupname := strings.TrimSpace(args[1])
+				user_data := &pb.User{
+					Id:   client_details.Id,
+					Name: client_details.Name,
+				}
+				resp, err := service.JoinGroup(groupname, *user_data, chatclient)
+				if err != nil {
+					log.Printf("Failed to join group: %v", err)
+				}
+				current_group_details.GroupID = resp.Group.Groupname
+				current_group_details.Groupname = resp.Group.Groupname
+				current_group_details.Participants = resp.Group.Participants
+				current_group_details.Messages = resp.Group.Messages
 			}
 
-		case "j":
-			groupname := strings.TrimSpace(args[1])
-			user_data := &pb.User{
-				Id:   client_details.Id,
-				Name: client_details.Name,
-			}
-			resp, err := service.JoinGroup(groupname, *user_data, chatclient)
-			if err != nil {
-				log.Printf("Failed to join group: %v", err)
-			}
-			current_group_details.GroupID = resp.Group.Groupname
-			current_group_details.Groupname = resp.Group.Groupname
-			current_group_details.Participants = resp.Group.Participants
-			current_group_details.Messages = resp.Group.Messages
 		case "a":
-			message := strings.TrimSpace(args[1])
-			chat_message := &pb.ChatMessage{
-				Text:  message,
-				Likes: 0,
+			if client_details.Name == "" {
+				log.Println("Please login first to join a group.")
+			} else if current_group_details.Groupname == "" {
+				log.Println("Please join a group to send a message")
+			} else {
+				message := strings.TrimSpace(args[1])
+				chat_message := &pb.ChatMessage{
+					Text:  message,
+					Likes: 0,
+				}
+				message_data := &pb.AppendChat{
+					User:    &client_details,
+					Group:   current_group_details,
+					Message: chat_message,
+				}
+				append_request := &pb.AppendRequest{
+					Appendchat: message_data,
+				}
+				resp, err := service.SendMessage(append_request, messageclient)
+				if err != nil {
+					log.Printf("Failed to send message: %v", err)
+				}
+				print(resp)
 			}
-			message_data := &pb.AppendChat{
-				User:    &client_details,
-				Group:   current_group_details,
-				Message: chat_message,
-			}
-			append_request := &pb.AppendRequest{
-				Appendchat: message_data,
-			}
-			resp, err := service.SendMessage(append_request, messageclient)
-			if err != nil {
-				log.Printf("Failed to send message: %v", err)
-			}
-			print(resp)
+
 		case "l":
 			messageid := strings.TrimSpace(args[1])
 			like_message_data := &pb.LikeMessage{
