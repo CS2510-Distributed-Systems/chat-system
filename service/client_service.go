@@ -79,7 +79,7 @@ func GroupChat(client *ChatServiceClient) error {
 
 	ctx := context.Background()
 
-	stream, err := client.service.GroupChat(ctx)
+	stream, err := client.service.GroupChat(ctx, client.clientstore.GetGroup().GetGroupname)
 	if err != nil {
 		return err
 	}

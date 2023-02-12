@@ -13,11 +13,12 @@ type UserStore interface {
 	SaveUser(user *pb.User)
 }
 type GroupStore interface {
-	JoinGroup(group string, user *pb.User) (*pb.Group, error)
-	CreateGroup(group *pb.Group)
-	AppendMessage(message_details *pb.AppendChat) 
+	GetGroup(groupname string) (*pb.Group, error)
+	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
+	AppendMessage(message_details *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.LikeMessage) error
+	
 }
 
 type InMemoryUserStore struct {
@@ -55,6 +56,10 @@ func (userstore *InMemoryUserStore) SaveUser(user *pb.User) {
 	fmt.Printf("user saved. New map Instance : ", userstore)
 }
 
+func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error){
+	return group_master.Group[groupname] , nil
+}
+
 func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.User) (*pb.Group, error) {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
@@ -76,18 +81,16 @@ func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.Use
 	return group_master.Group[groupname], nil
 }
 
-func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat) (*pb.AppendResponse, error) {
+func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat) error  {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
 	msgId := uuid.New().String()
 	groupname := appendchat.Group.GetGroupname()
 	message := appendchat.Message.GetText()
 	group_master.Group[groupname].Messages[msgId] = message
-	response := &pb.AppendResponse{
-		Id: msgId,
-	}
+
 	log.Println(group_master.Group[groupname].GetMessages())
-	return response, nil
+	return nil
 }
 
 func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage) error {

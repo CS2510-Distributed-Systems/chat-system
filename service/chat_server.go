@@ -5,15 +5,15 @@ import (
 	"context"
 	"fmt"
 
-	
 	"log"
 	"time"
 
-	"github.com/google/uuid"
+	
 )
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
+	groupstore GroupStore
 }
 
 // rpc
@@ -23,93 +23,86 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 	log.Printf("receive a group join request with name: %s", group.Groupname)
 
 	//save the group details in the group store
-
-	newgroup := &pb.Group{
-		GroupID:   uuid.New().String(),
-		Groupname: group.Groupname,
-
-		Participants: []*pb.User{
-			{
-				Id:   uuid.New().String(),
-				Name: "Dilip",
-			},
-			{
-				Id:   uuid.New().String(),
-				Name: "Teja",
-			},
-		},
-		Messages: []*pb.ChatMessage{
-			{
-				Text:  "Hi this is a new group",
-				Likes: 0,
-			},
-			{
-				Text:  "Hi this is a again new group",
-				Likes: 1,
-			},
-		},
+	group_details, err := s.groupstore.JoinGroup(group.Groupname, group.User)
+	//save the group details in the group store
+	log.Println(group_details)
+	if err != nil {
+		log.Printf("Failed to join group %v", err)
 	}
-
-	log.Printf("saved group with name: %s", group.Groupname)
+	log.Printf("saved laptop with name: %s", group.Groupname)
 	res := &pb.JoinResponse{
-		Group: newgroup,
+		Group: group_details,
 	}
 	return res, nil
+
 }
 
-//streaming rpc
-func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) error {
+// streaming rpc
+func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer, groupname string) error {
 
 	errch := make(chan error)
-	go receivestream(stream)
-	go sendstream(stream)
+	go receivestream(stream, s.groupstore)
+	go sendstream(stream, s.groupstore , groupname)
 
 	return <-errch
 }
 
-func receivestream(stream pb.ChatService_GroupChatServer ) {
+func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore) {
 	for {
 		req, err := stream.Recv()
 		if err != nil {
 			log.Printf("error in receiving")
 			break
 		}
-		switch req.GetAction().(type){
+		switch req.GetAction().(type) {
 		case *pb.GroupChatRequest_Append:
-			newgroup := &pb.Group{
-				GroupID:   uuid.New().String(),
-				Groupname: req.GetAppend().String(),
-
-				Participants: []*pb.User{
-					{
-						Id:   uuid.New().String(),
-						Name: "Dilip",
-					},
-					{
-						Id:   uuid.New().String(),
-						Name: "Teja",
-					},
-				},
-				Messages: []*pb.ChatMessage{
-					{
-						Text:  "Hi this is a new group",
-						Likes: 0,
-					},
-					{
-						Text:  "Hi this is a again new group",
-						Likes: 1,
-					},
-				},
+			group := req.GetAppend().Group
+			message := req.GetAppend().Message
+			user := req.GetAppend().User
+			message_details := &pb.AppendChat{
+				Group:   group,
+				Message: message,
+				User:    user,
 			}
-
-			fmt.Printf("trying to append new line : %s", newgroup)
-			res := &pb.GroupChatResponse{
-				Group: newgroup,
+			err := groupstore.AppendMessage(message_details)
+			if err != nil {
+				log.Printf("some error occured in appending the message: %w", err)
 			}
-			err  = stream.Send(res)
+			fmt.Printf("trying to append new line : %s in group : %s", message, group.GetGroupname())
+
 		case *pb.GroupChatRequest_Like:
+			group := req.GetLike().Group
+			msgId := req.GetLike().Messageid
+			user := req.GetLike().User
+			likemessage := &pb.LikeMessage{
+				Group:     group,
+				Messageid: msgId,
+				User:      user,
+			}
+			err := groupstore.LikeMessage(likemessage)
+			if err != nil {
+				log.Printf("some error occured in liking the message: %w", err)
+			}
+			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
+
 		case *pb.GroupChatRequest_Unlike:
-		case *pb.GroupChatRequest_Print:
+			group := req.GetUnlike().Group
+			msgId := req.GetUnlike().Messageid
+			user := req.GetUnlike().User
+			likemessage := &pb.LikeMessage{
+				Group:     group,
+				Messageid: msgId,
+				User:      user,
+			}
+			groupstore.LikeMessage(likemessage)
+			if err != nil {
+				log.Printf("some error occured in unliking the message: %w", err)
+			}
+			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
+
+		case *pb.GroupChatRequest_Print:			
+			fmt.Printf("Need to implement this feature")
+
 		default:
 			log.Printf("do nothing")
 		}
@@ -117,36 +110,16 @@ func receivestream(stream pb.ChatService_GroupChatServer ) {
 	}
 }
 
-func sendstream(stream pb.ChatService_GroupChatServer) {
+func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore ,groupname string) {
 	for {
 		time.Sleep(5 * time.Second)
-		newgroup := &pb.Group{
-			GroupID:   uuid.New().String(),
-			Groupname: "kothizzz",
-			Participants: []*pb.User{
-				{
-					Id:   uuid.New().String(),
-					Name: "Dilip",
-				},
-				{
-					Id:   uuid.New().String(),
-					Name: "Teja",
-				},
-			},
-			Messages: []*pb.ChatMessage{
-				{
-					Text:  "Hi this exactly how i want",
-					Likes: 0,
-				},
-				{
-					Text:  "Hi this is a again new group",
-					Likes: 1,
-				},
-			},
+		
+		group, err := groupstore.GetGroup(groupname)
+		if err != nil {
+			log.Printf("error sending group to client %w", err)
 		}
-
 		res := &pb.GroupChatResponse{
-			Group: newgroup,
+			Group: group,
 		}
 		stream.Send(res)
 	}
