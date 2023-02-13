@@ -25,12 +25,12 @@ func (s *UserAuthServiceServer) Login(ctx context.Context, req *pb.LoginRequest)
 	user_name := req.User.GetName()
 	log.Printf("Logging as: %v", user_name)
 	newUser := &pb.User{
-		Id:   uuid.New().String(),
+		Id:   uuid.New().ID(),
 		Name: user_name,
 	}
 	s.store.SaveUser(newUser)
 	res := &pb.LoginResponse{
-		Id: req.User.GetId(),
+		User: req.GetUser(),
 	}
 
 	return res, nil

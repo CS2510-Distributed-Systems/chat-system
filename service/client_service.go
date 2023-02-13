@@ -8,9 +8,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/metadata"
 	// grpc "google.golang.org/grpc"
 	// codes "google.golang.org/grpc/codes"
@@ -37,11 +39,9 @@ func JoinGroup(groupname string, client *ChatServiceClient) error {
 	ctx := context.Background()
 
 	joinchat := &pb.JoinChat{
-		Groupname: "kothiz",
-		User: &pb.User{
-			Name: "Dilip",
-			Id:   uuid.New().String(),
-		}}
+		Groupname: groupname,
+		User: client.clientstore.GetUser(),
+	}
 
 	req := &pb.JoinRequest{
 		Joinchat: joinchat,
@@ -61,7 +61,7 @@ func JoinGroup(groupname string, client *ChatServiceClient) error {
 
 func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse, error) {
 	user := &pb.User{
-		Id:   uuid.New().String(),
+		Id:   uuid.New().ID(),
 		Name: user_name,
 	}
 	user_details := &pb.LoginRequest{
@@ -71,7 +71,7 @@ func UserLogin(user_name string, client pb.AuthServiceClient) (*pb.LoginResponse
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
 	}
-	log.Printf("User %v Logged in succesfully.", res.GetId())
+	log.Printf("User %v Logged in succesfully.", res.User.GetName())
 	
 	return res, nil
 }
@@ -98,7 +98,6 @@ func GroupChat(client *ChatServiceClient) error {
 
 func receive(stream pb.ChatService_GroupChatClient, waitResponse chan error) error {
 	for {
-		fmt.Println("trying to receive from the server continously")
 		res, err := stream.Recv()
 		if err == io.EOF {
 			log.Print("no more responses")
@@ -110,40 +109,89 @@ func receive(stream pb.ChatService_GroupChatClient, waitResponse chan error) err
 			return err
 		}
 
-		log.Print("received response: ", res)
+		Print(res.Group)
 	}
 }
+
 
 func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client *ChatServiceClient) error {
 	for {
 		log.Printf("Enter the message in the stream:")
-		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatalf("Cannot read the message, please enter again\n")
 		}
-		msg = strings.Trim(msg, "\r\n")
-		args := strings.Split(msg, " ")
+		input = strings.Trim(input, "\r\n")
+		args := strings.Split(input, " ")
 		cmd := strings.TrimSpace(args[0])
+		msg := strings.TrimSpace(args[1])
 		switch cmd {
+
 		case "a":
 			appendchat := &pb.GroupChatRequest_Append{
 				Append: &pb.AppendChat{
-					User:  client.clientstore.GetUser(),
 					Group: client.clientstore.GetGroup(),
-					Message: &pb.ChatMessage{
-						Text:  strings.TrimSpace(args[1]),
-						Likes: 0,
+					Chatmessage : &pb.ChatMessage{
+						MessagedBy: client.clientstore.GetUser(),
+						Message: msg,
+						LikedBy: make(map[uint32]string),
 					},
 				},
 			}
 			req := &pb.GroupChatRequest{
 				Action: appendchat,
 			}
-			res := stream.Send(req)
-			log.Print("received response after appending: ", res)
+			stream.Send(req)
+			log.Printf("appended a message")
+
+		case "l":
+			messagenumber,err := strconv.ParseUint(msg,10,32)
+			if err !=nil {
+				log.Printf("please provide a valid number to like")
+			}
+			likemessage := &pb.GroupChatRequest_Like{
+				Like: &pb.LikeMessage{
+					User: client.clientstore.GetUser(),
+					Messageid: uint32(messagenumber),
+					Group: client.clientstore.GetGroup(),
+				},
+			}
+			req := &pb.GroupChatRequest{
+				Action: likemessage,
+			}
+			stream.Send(req)
+			log.Printf("liked a message")
+
+		case "r":
+			messagenumber,err := strconv.ParseUint(msg,10,32)
+			if err !=nil {
+				log.Printf("please provide a valid number to like")
+			}
+			unlikemessage := &pb.GroupChatRequest_Unlike{
+				Unlike: &pb.UnLikeMessage{
+					User: client.clientstore.GetUser(),
+					Messageid: uint32(messagenumber),
+					Group: client.clientstore.GetGroup(),
+				},
+			}
+			req := &pb.GroupChatRequest{
+				Action: unlikemessage,
+			}
+			stream.Send(req)
+			log.Printf("liked a message")
+		
 		default:
-			log.Printf("Cannot read the message, please enter again\n")
+			log.Printf("Cannot read the message, please enter again")
 			continue
 		}
 	}
+}
+
+func Print(group *pb.Group){
+	groupname := group.Groupname
+	participants := maps.Values(group.Participants)
+	messages := maps.Values(group.Messages)
+	fmt.Printf("Group: %v\n",groupname)
+	fmt.Printf("Participants: %v\n", participants)
+	fmt.Printf("%v\n",messages)
 }

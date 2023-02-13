@@ -67,19 +67,14 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 		}
 		switch req.GetAction().(type) {
 		case *pb.GroupChatRequest_Append:
-			group := req.GetAppend().Group
-			message := req.GetAppend().Message
-			user := req.GetAppend().User
-			message_details := &pb.AppendChat{
-				Group:   group,
-				Message: message,
-				User:    user,
+			appendchat := &pb.AppendChat{
+				Group: req.GetAppend().GetGroup(),
+				Chatmessage: req.GetAppend().GetChatmessage(),
 			}
-			err := groupstore.AppendMessage(message_details)
+			err := groupstore.AppendMessage(appendchat)
 			if err != nil {
-				log.Printf("some error occured in appending the message: %s", err)
+				log.Printf("cannot save the message %s", err)
 			}
-			fmt.Printf("trying to append new line : %s in group : %s", message, group.GetGroupname())
 
 		case *pb.GroupChatRequest_Like:
 			group := req.GetLike().Group
@@ -94,7 +89,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			if err != nil {
 				log.Printf("some error occured in liking the message: %s", err)
 			}
-			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
+			fmt.Printf("trying to like line : %v in group : %s", msgId, group.GetGroupname())
 
 		case *pb.GroupChatRequest_Unlike:
 			group := req.GetUnlike().Group
@@ -109,7 +104,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			if err != nil {
 				log.Printf("some error occured in unliking the message: %s", err)
 			}
-			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
+			fmt.Printf("trying to like line : %v in group : %s", msgId, group.GetGroupname())
 
 		case *pb.GroupChatRequest_Print:			
 			fmt.Printf("Need to implement this feature")

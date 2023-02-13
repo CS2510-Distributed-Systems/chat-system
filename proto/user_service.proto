@@ -8,7 +8,7 @@ import "user.proto";
 
 message LoginRequest { User user = 1; }
 
-message LoginResponse { string id = 1; }
+message LoginResponse { User user = 1; }
 
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse) {};

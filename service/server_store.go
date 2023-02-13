@@ -7,23 +7,23 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/jinzhu/copier"
 )
 
 type UserStore interface {
-	SaveUser(user *pb.User)
+	SaveUser(user *pb.User) error
 }
 type GroupStore interface {
 	GetGroup(groupname string) (*pb.Group, error)
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
-	AppendMessage(message_details *pb.AppendChat) error
+	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.UnLikeMessage) error
-	
 }
 
 type InMemoryUserStore struct {
 	mutex sync.RWMutex
-	User  map[string]*pb.User
+	User  map[uint32]*pb.User
 }
 
 type InMemoryGroupStore struct {
@@ -33,7 +33,7 @@ type InMemoryGroupStore struct {
 
 func NewInMemoryUserStore() *InMemoryUserStore {
 	return &InMemoryUserStore{
-		User: make(map[string]*pb.User),
+		User: make(map[uint32]*pb.User),
 	}
 }
 
@@ -43,53 +43,66 @@ func NewInMemoryGroupStore() *InMemoryGroupStore {
 	}
 }
 
-func (userstore *InMemoryUserStore) SaveUser(user *pb.User) {
-	//find if the user is already present
-	//TODO
-
-	//else save the new user
+func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {
 	userstore.mutex.Lock()
 	defer userstore.mutex.Unlock()
-	Id := user.GetId()
-	userstore.User[Id] = user
 
-	fmt.Printf("user saved. New map Instance : %s", userstore)
+	usercopy := &pb.User{}
+	err := copier.Copy(usercopy, user)
+	if err != nil{
+		return fmt.Errorf("error while deepcopy user: %w",err)
+	}
+	Id := usercopy.GetId()
+	userstore.User[Id] = usercopy
+
+	log.Printf("user %v logged in the server",user.GetName() )
+
+	return nil
 }
 
-func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error){
-	return group_master.Group[groupname] , nil
+func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error) {
+	return group_master.Group[groupname], nil
 }
 
 func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.User) (*pb.Group, error) {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	_, found := group_master.Group[groupname]
+	//try finding the group in the groupstore
+	group, found := group_master.Group[groupname]
 	if found {
-		group_master.Group[groupname].Participants[user.Id] = user.Name
-		return group_master.Group[groupname], nil
+		group.Participants[user.GetId()] = user.GetName()
+		return group, nil
 	}
+	//if not found create one 
 	new_group := &pb.Group{
-		GroupID:      uuid.New().String(),
+		GroupID:      uuid.New().ID(),
 		Groupname:    groupname,
-		Participants: make(map[string]string),
-		Messages:     make(map[string]string),
-		Likes:        make(map[string]int32),
+		Participants: make(map[uint32]string),
+		Messages: make(map[uint32]*pb.ChatMessage),
 	}
 	group_master.Group[groupname] = new_group
-	group_master.Group[groupname].Participants[user.Id] = user.Name
+	new_group.Participants[user.GetId()] = user.GetName()
 
-	return group_master.Group[groupname], nil
+	log.Printf("user %v joined %v group",user.GetName(), groupname)
+	return new_group, nil
 }
 
-func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat) error  {
+func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
-	msgId := uuid.New().String()
+	//get groupname and message.
 	groupname := appendchat.Group.GetGroupname()
-	message := appendchat.Message.GetText()
-	group_master.Group[groupname].Messages[msgId] = message
+	chatmessage := appendchat.GetChatmessage()
+	//get group and messagenumber
+	group, err := group_master.GetGroup(groupname)
+	if err!= nil{
+		return fmt.Errorf("cannot find the group %v",groupname)
+	}
+	chatmessagenumber := len(group.Messages)
+	//append in the group
+	group.Messages[uint32(chatmessagenumber)] = chatmessage	
 
-	log.Println(group_master.Group[groupname].GetMessages())
+	log.Printf("group %v has a new message appended",groupname)
 	return nil
 }
 
@@ -97,21 +110,66 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
 	groupname := likemessage.Group.GetGroupname()
-	msgId := likemessage.GetMessageid()
-	group_master.Group[groupname].Likes[msgId]++
+	likedmsgnumber := likemessage.GetMessageid()
+	likeduser := likemessage.User
 
-	log.Println(group_master.Group[groupname].GetLikes())
+	//get the group
+	group, err := group_master.GetGroup(groupname)
+	if err!= nil{
+		return fmt.Errorf("cannot find the group %v",groupname)
+	}
+	//validate and get the message to be liked
+	message, found := group.Messages[likedmsgnumber]
+	if !found{
+		return fmt.Errorf("please enter valid message")
+	}
+	//like it only if he is not the sender of the message
+	if message.MessagedBy == likeduser{
+		return fmt.Errorf("cannot like you own message")
+	}
+	//check if the like is already present
+	user, found := message.LikedBy[likeduser.GetId()]
+	if found {
+		return fmt.Errorf("message already liked")
+	}
+	//like
+	message.LikedBy[likeduser.GetId()] =user
+
+
+	log.Printf("message liked")
 	return nil
 }
+
 func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
 	groupname := unlikemessage.Group.GetGroupname()
-	msgId := unlikemessage.GetMessageid()
-	if group_master.Group[groupname].Likes[msgId] > 0 {
-		group_master.Group[groupname].Likes[msgId]--
+	unlikedmsgnumber := unlikemessage.GetMessageid()
+	unlikeduser := unlikemessage.User
+	
+	//get the group
+	group, err := group_master.GetGroup(groupname)
+	if err!= nil{
+		return fmt.Errorf("cannot find the group %v",groupname)
 	}
+	//validate and get the message to be liked
+	message, found := group.Messages[unlikedmsgnumber]
+	if !found{
+		return fmt.Errorf("please enter valid message")
+	}
+	//like it only if he is not the sender of the message
+	if message.MessagedBy == unlikeduser{
+		return fmt.Errorf("cannot unlike you own message")
+	}
+	//check if the like is present
+	username, found := message.LikedBy[unlikeduser.GetId()]
+	if !found {
+		return fmt.Errorf("message never liked")
+	}
+	//unlike
+	delete(message.LikedBy,unlikeduser.GetId())
 
-	log.Println(group_master.Group[groupname].GetLikes())
+
+	log.Printf("user %s unliked a message",username)
 	return nil
 }

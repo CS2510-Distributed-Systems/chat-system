@@ -18,22 +18,23 @@ type InMemoryClientStore struct {
 
 func NewInMemoryClientStore() *InMemoryClientStore {
 	group := &pb.Group{
-		GroupID:      "0",
+		GroupID:      0,
 		Groupname:    "None",
-		Participants: make(map[string]string),
-		Messages:    make(map[string]string),
+		Participants: make(map[uint32]string),
+		Messages:    make(map[uint32]*pb.ChatMessage),
+	}
+	active_user := &pb.User{
+		Name: "None",
+		Id:   0,
 	}
 	return &InMemoryClientStore{
-		active_user: &pb.User{
-			Name: "None",
-			Id:   "0",
-		},
+		active_user: active_user,
 		group: group,
 	}
 }
 
 func (clientstore *InMemoryClientStore) SetUser(user *pb.User) error {
-	clientstore.active_user = user
+	clientstore.active_user = user	
 	return nil
 }
 
