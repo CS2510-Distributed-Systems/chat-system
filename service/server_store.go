@@ -53,7 +53,7 @@ func (userstore *InMemoryUserStore) SaveUser(user *pb.User) {
 	Id := user.GetId()
 	userstore.User[Id] = user
 
-	fmt.Printf("user saved. New map Instance : ", userstore)
+	fmt.Printf("user saved. New map Instance : %s", userstore)
 }
 
 func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error){

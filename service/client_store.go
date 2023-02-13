@@ -20,8 +20,8 @@ func NewInMemoryClientStore() *InMemoryClientStore {
 	group := &pb.Group{
 		GroupID:      "0",
 		Groupname:    "None",
-		Participants: make([]*pb.User, 0),
-		Messages:     make([]*pb.ChatMessage, 0),
+		Participants: make(map[string]string),
+		Messages:    make(map[string]string),
 	}
 	return &InMemoryClientStore{
 		active_user: &pb.User{

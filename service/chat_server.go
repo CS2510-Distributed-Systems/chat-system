@@ -4,10 +4,8 @@ import (
 	"chat-system/pb"
 	"context"
 	"fmt"
-
 	"log"
 	"time"
-
 	"google.golang.org/grpc/metadata"
 )
 
@@ -36,7 +34,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 	if err != nil {
 		log.Printf("Failed to join group %v", err)
 	}
-	log.Printf("saved laptop with name: %s", group.Groupname)
+	log.Printf("Joined group %s", group.Groupname)
 	res := &pb.JoinResponse{
 		Group: group_details,
 	}
@@ -52,7 +50,7 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 		log.Printf("didnt receive the context properly from the client..")
 	}
 	groupname := md.Get("groupname")[0]
-	
+
 	errch := make(chan error)
 	go receivestream(stream, s.groupstore)
 	go sendstream(stream,s.groupstore, groupname)
@@ -79,7 +77,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			}
 			err := groupstore.AppendMessage(message_details)
 			if err != nil {
-				log.Printf("some error occured in appending the message: %w", err)
+				log.Printf("some error occured in appending the message: %s", err)
 			}
 			fmt.Printf("trying to append new line : %s in group : %s", message, group.GetGroupname())
 
@@ -94,7 +92,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			}
 			err := groupstore.LikeMessage(likemessage)
 			if err != nil {
-				log.Printf("some error occured in liking the message: %w", err)
+				log.Printf("some error occured in liking the message: %s", err)
 			}
 			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
 
@@ -109,7 +107,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			}
 			groupstore.UnLikeMessage(unlikemessage)
 			if err != nil {
-				log.Printf("some error occured in unliking the message: %w", err)
+				log.Printf("some error occured in unliking the message: %s", err)
 			}
 			fmt.Printf("trying to like line : %s in group : %s", msgId, group.GetGroupname())
 
@@ -129,7 +127,7 @@ func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore ,gr
 		
 		group, err := groupstore.GetGroup(groupname)
 		if err != nil {
-			log.Printf("error sending group to client %w", err)
+			log.Printf("error sending group to client %s", err)
 		}
 		res := &pb.GroupChatResponse{
 			Group:group,
