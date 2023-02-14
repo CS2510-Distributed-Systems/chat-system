@@ -21,7 +21,7 @@ func NewInMemoryClientStore() *InMemoryClientStore {
 		GroupID:      0,
 		Groupname:    "None",
 		Participants: make(map[uint32]string),
-		Messages:    make(map[uint32]*pb.ChatMessage),
+		Messages:     make(map[uint32]*pb.ChatMessage),
 	}
 	active_user := &pb.User{
 		Name: "None",
@@ -29,12 +29,12 @@ func NewInMemoryClientStore() *InMemoryClientStore {
 	}
 	return &InMemoryClientStore{
 		active_user: active_user,
-		group: group,
+		group:       group,
 	}
 }
 
 func (clientstore *InMemoryClientStore) SetUser(user *pb.User) error {
-	clientstore.active_user = user	
+	clientstore.active_user = user
 	return nil
 }
 
