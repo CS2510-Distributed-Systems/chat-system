@@ -89,7 +89,7 @@ func UserLogin(user_name string, client *UserAuthServiceClient) (*pb.LoginRespon
 
 func GroupChat(client *ChatServiceClient) error {
 	//adding grouname to metadata
-	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname)
+	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname, "username",client.clientstore.GetUser().Name)
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	stream, err := client.service.GroupChat(ctx)

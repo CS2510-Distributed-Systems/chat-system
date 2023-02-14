@@ -5,20 +5,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
-	"github.com/jinzhu/copier"
 	"google.golang.org/grpc/metadata"
 )
 
 type ChatServiceServer struct {
-	pb.UnimplementedChatServiceServer
-
 	groupstore GroupStore
+	broadcast  chan *pb.GroupChatResponse
+	mutex      sync.RWMutex
+	pb.UnimplementedChatServiceServer
 }
 
-func NewChatServiceServer(groupstore GroupStore) *ChatServiceServer {
+func NewChatServiceServer(groupstore GroupStore, broadcast chan *pb.GroupChatResponse) *ChatServiceServer {
 	return &ChatServiceServer{
 		groupstore: groupstore,
+		broadcast:  broadcast,
 	}
 }
 
@@ -32,9 +34,6 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 
 	//save the group details in the group store
 	group_details, err := s.groupstore.JoinGroup(group.Groupname, group.User)
-	groupcopy := &pb.Group{}
-	err = copier.Copy(groupcopy, group_details)
-	group_instance = groupcopy
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
@@ -60,17 +59,14 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 		log.Printf("didnt receive the context properly from the client..")
 	}
 	groupname := md.Get("groupname")[0]
+	username := md.Get("username")[0]
 
 	errch := make(chan error)
-	go receivestream(stream, s.groupstore, groupname)
-	go sendstream(stream, s.groupstore, groupname)
-	// group_instance, err := s.groupstore.GetGroup(groupname)
-	// if err != nil {
-	// 	log.Printf("failed to get the group %s", err)
-	// }
-	log.Printf("Refresh group triggered")
-	go refreshgroup(stream, group_instance, s, groupname)
 
+	go s.groupstore.SendBroadcasts(username, stream)
+	go receivestream(stream, username, groupname, s)
+	log.Printf("Refresh group triggered")
+	<-stream.Context().Done()
 	return <-errch
 }
 
@@ -78,18 +74,16 @@ func refreshgroup(stream pb.ChatService_GroupChatServer, group_instance *pb.Grou
 	log.Printf("Refresh group started")
 	for {
 		if s.groupstore.Modified(group_instance, groupname) {
-			current_group_instance, err := s.groupstore.GetGroup(groupname)
-			if err != nil {
-				log.Printf("failed to get the group %s", err)
-			}
+			current_group_instance := s.groupstore.GetGroup(groupname)
+
 			group_instance = current_group_instance
-			sendstream(stream, s.groupstore, groupname)
+			// sendstream(stream, s.groupstore, groupname)
 			log.Printf("Refresh group sent the updated group to clients")
 		}
 	}
 }
 
-func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {
+func receivestream(stream pb.ChatService_GroupChatServer, username string, groupname string, s *ChatServiceServer) {
 
 	for {
 		req, err := stream.Recv()
@@ -98,16 +92,17 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 			break
 		}
 		switch req.GetAction().(type) {
+
 		case *pb.GroupChatRequest_Append:
 			appendchat := &pb.AppendChat{
 				Group:       req.GetAppend().GetGroup(),
 				Chatmessage: req.GetAppend().GetChatmessage(),
 			}
-			err := groupstore.AppendMessage(appendchat)
+			err := s.groupstore.AppendMessage(appendchat)
 			if err != nil {
 				log.Printf("cannot save the message %s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+
 		case *pb.GroupChatRequest_Like:
 			group := req.GetLike().Group
 			msgId := req.GetLike().Messageid
@@ -117,11 +112,11 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 				Messageid: msgId,
 				User:      user,
 			}
-			err := groupstore.LikeMessage(likemessage)
+			err := s.groupstore.LikeMessage(likemessage)
 			if err != nil {
 				log.Printf("%s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+			// sendstream(stream, s.groupstore, groupname)
 
 		case *pb.GroupChatRequest_Unlike:
 			group := req.GetUnlike().Group
@@ -132,15 +127,15 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 				Messageid: msgId,
 				User:      user,
 			}
-			groupstore.UnLikeMessage(unlikemessage)
+			s.groupstore.UnLikeMessage(unlikemessage)
 			if err != nil {
 				log.Printf("some error occured in unliking the message: %s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+			// sendstream(stream, groupstore, groupname)
 
 		case *pb.GroupChatRequest_Print:
 			fmt.Printf("Need to implement this feature")
-			sendstream(stream, groupstore, groupname)
+			// sendstream(stream, groupstore, groupname)
 
 		default:
 			log.Printf("do nothing")
@@ -149,14 +144,22 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 	}
 }
 
-func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {
-	group, err := groupstore.GetGroup(groupname)
-	if err != nil {
-		log.Printf("error sending group to client %s", err)
+// func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {
+// 	group, err := groupstore.GetGroup(groupname)
+// 	if err != nil {
+// 		log.Printf("error sending group to client %s", err)
+// 	}
+// 	res := &pb.GroupChatResponse{
+// 		Group: group,
+// 	}
+// 	stream.Send(res)
+// 	log.Printf("sending group data of: %s", groupname)
+// }
+
+func sendstream(stream pb.ChatService_GroupChatServer, broadcast chan *pb.GroupChatResponse) {
+	for {
+		res := <-broadcast
+		stream.Send(res)
+		log.Printf("Stream broadcasted to all..")
 	}
-	res := &pb.GroupChatResponse{
-		Group: group,
-	}
-	stream.Send(res)
-	log.Printf("sending group data of: %s", groupname)
 }

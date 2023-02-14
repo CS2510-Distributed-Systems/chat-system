@@ -2,31 +2,33 @@ package service
 
 import (
 	"chat-system/pb"
+	"context"
 	"fmt"
 	"log"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserStore interface {
 	SaveUser(user *pb.User) error
 }
 type GroupStore interface {
-	GetGroup(groupname string) (*pb.Group, error)
+	GetGroup(groupname string) (*pb.Group)
 	Modified(group *pb.Group, groupname string) bool
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.UnLikeMessage) error
+	SendBroadcasts(username string, stream pb.ChatService_GroupChatServer)
+	CheckQueue(stream pb.ChatService_GroupChatServer, groupname string)
 }
 
 func (group_master *InMemoryGroupStore) Modified(group *pb.Group, groupname string) bool {
-	current_group_instance, err := group_master.GetGroup(groupname)
-	if err != nil {
-		log.Printf("failed to get the group %s", err)
-	}
+	current_group_instance := group_master.GetGroup(groupname)
 	log.Println("Latest data: ")
 	log.Println(current_group_instance.Messages)
 
@@ -38,14 +40,97 @@ func (group_master *InMemoryGroupStore) Modified(group *pb.Group, groupname stri
 	return false
 }
 
+func (group_master *InMemoryGroupStore) CheckQueue(stream pb.ChatService_GroupChatServer, groupname string) {
+	for {
+		localcopy := group_master.messageQueue[groupname]
+		if localcopy > uint32(0) {
+			group_master.mutex.Lock()
+
+			group := group_master.GetGroup(groupname)
+			res := &pb.GroupChatResponse{
+				Group: group,
+			}
+			stream.Send(res)
+			localcopy--
+			group_master.mutex.Unlock()
+		}
+	}
+}
+
+func (group_master *InMemoryGroupStore) SendBroadcasts(username string, clientstream pb.ChatService_GroupChatServer) {
+	stream := group_master.openStream(username)
+	defer group_master.closeStream(username)
+	for {
+		select {
+		case <-clientstream.Context().Done():
+			return
+		case res := <-stream:
+			if s, ok := status.FromError(clientstream.Send(res)); ok {
+				switch s.Code() {
+				case codes.OK:
+					// noop
+				case codes.Unavailable, codes.Canceled, codes.DeadlineExceeded:
+					log.Printf("client (%s) terminated connection", username)
+					return
+				default:
+					log.Printf("failed to send to client (%s): %v", username, s.Err())
+					return
+				}
+			}
+		}
+	}
+}
+
+func (group_master *InMemoryGroupStore) broadcast(_ context.Context) {
+	for res := range group_master.Broadcast {
+		group_master.mutex.Lock()
+		for _, stream := range group_master.Clientstreams {
+			select {
+			case stream <- res:
+				// noop
+			default:
+				log.Printf("client stream full, dropping message")
+			}
+		}
+		group_master.mutex.Unlock()
+	}
+}
+
+func (group_master *InMemoryGroupStore) openStream(username string) (stream chan *pb.GroupChatResponse) {
+	stream = make(chan *pb.GroupChatResponse, 100)
+
+	group_master.mutex.Lock()
+	group_master.Clientstreams[username] = stream
+	group_master.mutex.Unlock()
+
+	log.Printf("Opened stream for client")
+	return
+}
+
+func (group_master *InMemoryGroupStore) closeStream(username string) {
+	group_master.mutex.Lock()
+
+	if stream, ok := group_master.Clientstreams[username]; ok {
+		delete(group_master.Clientstreams, username)
+		close(stream)
+	}
+
+	log.Printf("closed stream for client %s", username)
+
+	group_master.mutex.Unlock()
+}
+
 type InMemoryUserStore struct {
 	mutex sync.RWMutex
 	User  map[uint32]*pb.User
 }
 
 type InMemoryGroupStore struct {
-	mutex sync.RWMutex
-	Group map[string]*pb.Group
+	mutex         sync.RWMutex
+	Group         map[string]*pb.Group
+	Clientstreams map[string]chan *pb.GroupChatResponse
+	Broadcast     chan *pb.GroupChatResponse
+	messageQueue  map[string]uint32
 }
 
 func NewInMemoryUserStore() *InMemoryUserStore {
@@ -55,9 +140,11 @@ func NewInMemoryUserStore() *InMemoryUserStore {
 }
 
 func NewInMemoryGroupStore() *InMemoryGroupStore {
-
 	return &InMemoryGroupStore{
-		Group: make(map[string]*pb.Group, 0),
+		Group:         make(map[string]*pb.Group, 0),
+		Clientstreams: make(map[string]chan *pb.GroupChatResponse),
+		messageQueue:  make(map[string]uint32),
+		Broadcast:     make(chan *pb.GroupChatResponse),
 	}
 }
 
@@ -78,8 +165,8 @@ func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {
 	return nil
 }
 
-func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error) {
-	return group_master.Group[groupname], nil
+func (group_master *InMemoryGroupStore) GetGroup(groupname string) *pb.Group {
+	return group_master.Group[groupname]
 }
 
 func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.User) (*pb.Group, error) {
@@ -123,13 +210,15 @@ func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat)
 	}
 	log.Printf("chatmessage arrived is %v", chatmessage)
 	//get group and messagenumber
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group := group_master.GetGroup(groupname)
 	chatmessagenumber := len(group.Messages)
 	//append in the group
 	group.Messages[uint32(chatmessagenumber)] = chatmessage
+	res := &pb.GroupChatResponse{
+		Group: group_master.GetGroup(groupname),
+	}
+	group_master.Broadcast <- res
+
 	log.Printf("group messages are %v", group.Messages)
 	log.Printf("group %v has a new message appended", groupname)
 	return nil
@@ -143,10 +232,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	likeduser := likemessage.User
 
 	//get the group
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group := group_master.GetGroup(groupname)
 	//validate and get the message to be liked
 	message, found := group.Messages[likedmsgnumber]
 	if !found {
@@ -177,10 +263,8 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMe
 	unlikeduser := unlikemessage.User
 
 	//get the group
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group := group_master.GetGroup(groupname)
+
 	//validate and get the message to be liked
 	message, found := group.Messages[unlikedmsgnumber]
 	if !found {

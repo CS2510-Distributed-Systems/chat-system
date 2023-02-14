@@ -20,7 +20,8 @@ func main() {
 
 	grpcserver := grpc.NewServer()
 	groupstore := service.NewInMemoryGroupStore()
-	chatserver := service.NewChatServiceServer(groupstore)
+	broadcast := make(chan *pb.GroupChatResponse, 100)
+	chatserver := service.NewChatServiceServer(groupstore, broadcast)
 	userstore := service.NewInMemoryUserStore()
 	authserver := service.NewUserAuthServiceServer(userstore)
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
