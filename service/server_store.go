@@ -4,6 +4,7 @@ import (
 	"chat-system/pb"
 	"fmt"
 	"log"
+	"reflect"
 	"sync"
 
 	"github.com/google/uuid"
@@ -15,24 +16,38 @@ type UserStore interface {
 }
 type GroupStore interface {
 	GetGroup(groupname string) (*pb.Group, error)
-	Modified(group *pb.Group, groupname string) bool
+	Modified(group pb.Group, groupname string) bool
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.UnLikeMessage) error
 }
 
-func (group_master *InMemoryGroupStore) Modified(group *pb.Group, groupname string) bool {
+func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
 	current_group_instance, err := group_master.GetGroup(groupname)
+	log.Println(current_group_instance.Participants)
+	instance := pb.Group{
+		GroupID:      0,
+		Groupname:    "",
+		Participants: make(map[uint32]string),
+		Messages:     make(map[uint32]*pb.ChatMessage),
+	}
+	instance.Groupname = current_group_instance.Groupname
+	instance.GroupID = current_group_instance.GroupID
+	for key, val := range current_group_instance.Participants {
+		delete(instance.Participants, key)
+		instance.Participants[key] = val
+	}
+	for key, val := range current_group_instance.Messages {
+		delete(instance.Messages, key)
+		instance.Messages[key] = val
+	}
 	if err != nil {
 		log.Printf("failed to get the group %s", err)
 	}
-	log.Println("Latest data: ")
-	log.Println(current_group_instance.Messages)
-
-	log.Println("Previous data: ")
-	log.Println(group.Messages)
-	if current_group_instance != group {
+	res_Participants := reflect.DeepEqual(group.Participants, instance.Participants)
+	res_Messages := reflect.DeepEqual(group.Messages, instance.Messages)
+	if !(res_Participants || res_Messages) {
 		return true
 	}
 	return false

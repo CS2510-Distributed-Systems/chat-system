@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jinzhu/copier"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -22,7 +21,12 @@ func NewChatServiceServer(groupstore GroupStore) *ChatServiceServer {
 	}
 }
 
-var group_instance *pb.Group
+var group_instance = pb.Group{
+	GroupID:      0,
+	Groupname:    "",
+	Participants: make(map[uint32]string),
+	Messages:     make(map[uint32]*pb.ChatMessage),
+}
 
 // rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
@@ -32,14 +36,20 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 
 	//save the group details in the group store
 	group_details, err := s.groupstore.JoinGroup(group.Groupname, group.User)
-	groupcopy := &pb.Group{}
-	err = copier.Copy(groupcopy, group_details)
-	group_instance = groupcopy
+	group_instance.Groupname = group_details.Groupname
+	group_instance.GroupID = group_details.GroupID
+	for key, val := range group_details.Participants {
+		group_instance.Participants[key] = val
+	}
+	for key, val := range group_details.Messages {
+		group_instance.Messages[key] = val
+	}
+	//copier.Copy(group_instance, *group_details)
+	log.Println(group_instance.Participants)
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
 	//save the group details in the group store
-	log.Println(group_details)
 	if err != nil {
 		log.Printf("Failed to join group %v", err)
 	}
@@ -74,15 +84,28 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	return <-errch
 }
 
-func refreshgroup(stream pb.ChatService_GroupChatServer, group_instance *pb.Group, s *ChatServiceServer, groupname string) {
-	log.Printf("Refresh group started")
+func refreshgroup(stream pb.ChatService_GroupChatServer, group_instance pb.Group, s *ChatServiceServer, groupname string) {
+	//Update_Chat_Sent := false
+	//var mutex = &sync.Mutex{}
 	for {
+		log.Println(group_instance.Participants)
 		if s.groupstore.Modified(group_instance, groupname) {
+			log.Println("In Modified block")
 			current_group_instance, err := s.groupstore.GetGroup(groupname)
 			if err != nil {
 				log.Printf("failed to get the group %s", err)
 			}
-			group_instance = current_group_instance
+			instance := *current_group_instance
+			group_instance.Groupname = instance.Groupname
+			group_instance.GroupID = instance.GroupID
+			for key, val := range instance.Participants {
+				group_instance.Participants[key] = val
+			}
+			for key, val := range instance.Messages {
+				group_instance.Messages[key] = val
+			}
+			//copier.Copy(group_instance, *current_group_instance)
+			log.Println(group_instance.Participants)
 			sendstream(stream, s.groupstore, groupname)
 			log.Printf("Refresh group sent the updated group to clients")
 		}
