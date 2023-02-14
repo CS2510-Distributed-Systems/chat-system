@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
+
 )
 
 type UserStore interface {
@@ -38,8 +39,9 @@ func NewInMemoryUserStore() *InMemoryUserStore {
 }
 
 func NewInMemoryGroupStore() *InMemoryGroupStore {
+	
 	return &InMemoryGroupStore{
-		Group: make(map[string]*pb.Group),
+		Group: make(map[string]*pb.Group, 0),
 	}
 }
 
@@ -73,13 +75,19 @@ func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.Use
 		group.Participants[user.GetId()] = user.GetName()
 		return group, nil
 	}
-	//if not found create one 
+	//if not found create one
+	
 	new_group := &pb.Group{
 		GroupID:      uuid.New().ID(),
 		Groupname:    groupname,
 		Participants: make(map[uint32]string),
 		Messages: make(map[uint32]*pb.ChatMessage),
 	}
+	// new_group.Messages[0] = &pb.ChatMessage{
+	// 	MessagedBy: user,
+	// 	Message: "",
+	// 	LikedBy: make(map[uint32]string),
+	// }
 	group_master.Group[groupname] = new_group
 	new_group.Participants[user.GetId()] = user.GetName()
 
@@ -92,7 +100,12 @@ func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat)
 	defer group_master.mutex.Unlock()
 	//get groupname and message.
 	groupname := appendchat.Group.GetGroupname()
-	chatmessage := appendchat.GetChatmessage()
+	chatmessage := &pb.ChatMessage{
+		MessagedBy: appendchat.Chatmessage.MessagedBy,
+		Message: appendchat.Chatmessage.Message,
+		LikedBy: make(map[uint32]string),
+	}
+	log.Printf("chatmessage arrived is %v",chatmessage)
 	//get group and messagenumber
 	group, err := group_master.GetGroup(groupname)
 	if err!= nil{
@@ -101,7 +114,7 @@ func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat)
 	chatmessagenumber := len(group.Messages)
 	//append in the group
 	group.Messages[uint32(chatmessagenumber)] = chatmessage	
-
+	log.Printf("group messages are %v",group.Messages)
 	log.Printf("group %v has a new message appended",groupname)
 	return nil
 }
@@ -123,6 +136,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	if !found{
 		return fmt.Errorf("please enter valid message")
 	}
+	log.Printf("getting the message : %v",message)
 	//like it only if he is not the sender of the message
 	if message.MessagedBy == likeduser{
 		return fmt.Errorf("cannot like you own message")
@@ -134,6 +148,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	}
 	//like
 	message.LikedBy[likeduser.GetId()] =user
+	
 
 
 	log.Printf("message liked")

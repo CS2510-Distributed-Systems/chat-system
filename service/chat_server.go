@@ -87,10 +87,8 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			}
 			err := groupstore.LikeMessage(likemessage)
 			if err != nil {
-				log.Printf("some error occured in liking the message: %s", err)
+				log.Printf("%s", err)
 			}
-			fmt.Printf("trying to like line : %v in group : %s", msgId, group.GetGroupname())
-
 		case *pb.GroupChatRequest_Unlike:
 			group := req.GetUnlike().Group
 			msgId := req.GetUnlike().Messageid
@@ -104,7 +102,6 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore)
 			if err != nil {
 				log.Printf("some error occured in unliking the message: %s", err)
 			}
-			fmt.Printf("trying to like line : %v in group : %s", msgId, group.GetGroupname())
 
 		case *pb.GroupChatRequest_Print:			
 			fmt.Printf("Need to implement this feature")

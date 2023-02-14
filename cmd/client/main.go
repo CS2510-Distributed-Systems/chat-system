@@ -41,14 +41,14 @@ func main() {
 	// defer conn.Close()
 	clientstore := service.NewInMemoryClientStore()
 	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), clientstore)
-	authclient := pb.NewAuthServiceClient(conn)
+	authclient := service.NewAuthServiceClient(pb.NewAuthServiceClient(conn),clientstore)
 
 	_, err = readInput(chatclient, authclient)
 	conn.Close()
 
 }
 
-func readInput(chatclient *service.ChatServiceClient, authclient pb.AuthServiceClient) (uint32, error) {
+func readInput(chatclient *service.ChatServiceClient, authclient *service.UserAuthServiceClient) (uint32, error) {
 	for {
 		log.Printf("Enter the message:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -78,7 +78,8 @@ func readInput(chatclient *service.ChatServiceClient, authclient pb.AuthServiceC
 			groupname := strings.TrimSpace(args[1])
 			err = service.JoinGroup(groupname, chatclient)
 			if err != nil {
-				log.Printf("Failed to create a group: %v", err)
+				log.Printf("Failed to join a group: %v", err)
+				continue
 			}
 			//start stream
 			log.Printf("starting streaming")
