@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"google.golang.org/grpc/metadata"
 )
@@ -21,31 +22,11 @@ func NewChatServiceServer(groupstore GroupStore) *ChatServiceServer {
 	}
 }
 
-var group_instance = pb.Group{
-	GroupID:      0,
-	Groupname:    "",
-	Participants: make(map[uint32]string),
-	Messages:     make(map[uint32]*pb.ChatMessage),
-}
-
 // rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
-
 	group := req.GetJoinchat()
 	log.Printf("receive a group join request with name: %s", group.Groupname)
-
-	//save the group details in the group store
 	group_details, err := s.groupstore.JoinGroup(group.Groupname, group.User)
-	group_instance.Groupname = group_details.Groupname
-	group_instance.GroupID = group_details.GroupID
-	for key, val := range group_details.Participants {
-		group_instance.Participants[key] = val
-	}
-	for key, val := range group_details.Messages {
-		group_instance.Messages[key] = val
-	}
-	//copier.Copy(group_instance, *group_details)
-	log.Println(group_instance.Participants)
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
@@ -74,42 +55,52 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	errch := make(chan error)
 	go receivestream(stream, s.groupstore, groupname)
 	go sendstream(stream, s.groupstore, groupname)
-	// group_instance, err := s.groupstore.GetGroup(groupname)
-	// if err != nil {
-	// 	log.Printf("failed to get the group %s", err)
-	// }
 	log.Printf("Refresh group triggered")
-	go refreshgroup(stream, group_instance, s, groupname)
+	go refreshgroup(stream, s, groupname)
 
 	return <-errch
 }
 
-func refreshgroup(stream pb.ChatService_GroupChatServer, group_instance pb.Group, s *ChatServiceServer, groupname string) {
+var wg sync.WaitGroup
+var mutex = &sync.RWMutex{}
+
+func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string) {
 	//Update_Chat_Sent := false
-	//var mutex = &sync.Mutex{}
+
+	var group_instance = pb.Group{
+		GroupID:      0,
+		Groupname:    "",
+		Participants: make(map[uint32]string),
+		Messages:     make(map[uint32]*pb.ChatMessage),
+	}
+
 	for {
-		log.Println(group_instance.Participants)
-		if s.groupstore.Modified(group_instance, groupname) {
+		mutex.Lock()
+		response := s.groupstore.Modified(group_instance, groupname)
+		mutex.Unlock()
+		if response {
 			log.Println("In Modified block")
-			current_group_instance, err := s.groupstore.GetGroup(groupname)
+			var current_group_instance, err = s.groupstore.GetGroup(groupname)
 			if err != nil {
 				log.Printf("failed to get the group %s", err)
 			}
-			instance := *current_group_instance
-			group_instance.Groupname = instance.Groupname
-			group_instance.GroupID = instance.GroupID
-			for key, val := range instance.Participants {
-				group_instance.Participants[key] = val
-			}
-			for key, val := range instance.Messages {
-				group_instance.Messages[key] = val
-			}
-			//copier.Copy(group_instance, *current_group_instance)
-			log.Println(group_instance.Participants)
+			go updateCurrentMapInstance(&group_instance, current_group_instance)
 			sendstream(stream, s.groupstore, groupname)
 			log.Printf("Refresh group sent the updated group to clients")
 		}
 	}
+}
+func updateCurrentMapInstance(group_instance *pb.Group, latest_group_data *pb.Group) {
+	mutex.Lock()
+	for key, value := range latest_group_data.Participants {
+		group_instance.Participants[key] = value
+	}
+	mutex.Unlock()
+	mutex.Lock()
+	for key, value := range latest_group_data.Messages {
+		group_instance.Messages[key] = value
+	}
+	mutex.Unlock()
 }
 
 func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {

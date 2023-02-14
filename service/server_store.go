@@ -24,30 +24,17 @@ type GroupStore interface {
 }
 
 func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
+	group_master.mutex.Lock()
 	current_group_instance, err := group_master.GetGroup(groupname)
-	log.Println(current_group_instance.Participants)
-	instance := pb.Group{
-		GroupID:      0,
-		Groupname:    "",
-		Participants: make(map[uint32]string),
-		Messages:     make(map[uint32]*pb.ChatMessage),
-	}
-	instance.Groupname = current_group_instance.Groupname
-	instance.GroupID = current_group_instance.GroupID
-	for key, val := range current_group_instance.Participants {
-		delete(instance.Participants, key)
-		instance.Participants[key] = val
-	}
-	for key, val := range current_group_instance.Messages {
-		delete(instance.Messages, key)
-		instance.Messages[key] = val
-	}
+	group_master.mutex.Unlock()
 	if err != nil {
 		log.Printf("failed to get the group %s", err)
 	}
-	res_Participants := reflect.DeepEqual(group.Participants, instance.Participants)
-	res_Messages := reflect.DeepEqual(group.Messages, instance.Messages)
-	if !(res_Participants || res_Messages) {
+	res_Participants := reflect.DeepEqual(group.Participants, current_group_instance.Participants)
+	res_Messages := reflect.DeepEqual(group.Messages, current_group_instance.Messages)
+	if !res_Participants {
+		return true
+	} else if !res_Messages {
 		return true
 	}
 	return false
