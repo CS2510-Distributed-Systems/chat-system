@@ -1,12 +1,11 @@
-package main
+package CallClient
 
 import (
 	"bufio"
-	"flag"
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"chat-system/pb"
 	"chat-system/service"
@@ -17,29 +16,30 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func main() {
+func CallClient(server_address string, port string) error {
 	// Process commandline arguments
-	addrArg := flag.String("addr", "localhost", "serveraddr of the server")
-	portArg := flag.Int("port", 12000, "the server port")
+	// addrArg := flag.String("addr", "localhost", "serveraddr of the server")
+	// portArg := flag.Int("port", 12000, "the server port")
 
-	flag.Parse()
+	// flag.Parse()
 
-	port := *portArg
-	serverAddr := *addrArg
-	log.Printf("Dialing to server %s:%v", serverAddr, port)
+	// port := *portArg
+	// serverAddr := *addrArg
+	log.Printf("Dialing to server %s:%v", server_address, port)
 
 	// Connect to RPC server
 	transportOption := grpc.WithTransportCredentials(insecure.NewCredentials())
-	conn, err := grpc.Dial(serverAddr+":"+strconv.Itoa(port), transportOption)
+	conn, err := grpc.Dial(server_address+":"+port, transportOption)
 	if err != nil {
 		log.Fatal("cannot dial the server", err)
+		return errors.New("Please provide correct address")
 	}
 
-	log.Printf("Dialing to server %s:%v", serverAddr, port)
+	log.Printf("Dialing to server %s:%v", server_address, port)
 	log.Printf("Target : %v :%v ", conn.GetState(), conn.Target())
 	// defer conn.Close()
 	clientstore := service.NewInMemoryClientStore(conn)
-	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), pb.NewAuthServiceClient(conn),clientstore)
+	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), pb.NewAuthServiceClient(conn), clientstore)
 
 	for {
 		//read input
@@ -58,10 +58,14 @@ func main() {
 		switch cmd {
 		case "u":
 			username := strings.TrimSpace(arg)
-			err := service.UserLogin(username, chatclient)
-			if err != nil{
-				fmt.Println(err)
-				return
+			if username == "" {
+				log.Println("Please provide a valid user name")
+			} else {
+				err := service.UserLogin(username, chatclient)
+				if err != nil {
+					fmt.Println(err)
+					return nil
+				}
 			}
 
 		case "j":
@@ -70,9 +74,14 @@ func main() {
 			} else {
 				//join the group
 				groupname := strings.TrimSpace(arg)
-				service.JoinGroup(groupname, chatclient)
-				//start streaming
-				service.GroupChat(chatclient)
+				if groupname == "" {
+					log.Println("Please provide a valid group name")
+				} else {
+					service.JoinGroup(groupname, chatclient)
+					//start streaming
+					service.GroupChat(chatclient)
+				}
+
 			}
 		case "a", "l", "r":
 			log.Println("please Enter the chat room")
@@ -80,18 +89,18 @@ func main() {
 		case "q":
 			if clientstore.GetUser().Name != "" {
 				resp := service.UserLogout(chatclient)
-				if resp{
+				if resp {
 					conn.Close()
-				
-					log.Println("close the program")
-					return
-				}else {
+
+					log.Println("closed localhost:12000 connection. Please enter address again to connect")
+					return nil
+				} else {
 					log.Println("Failed to exit program. Please try again.")
 				}
 			} else {
 				conn.Close()
-				log.Println("close the program")
-				return
+				log.Println("closed localhost:12000 connection.  Please enter address again to connect")
+				return nil
 			}
 
 		default:
