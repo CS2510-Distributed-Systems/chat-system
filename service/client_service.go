@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
@@ -34,14 +35,18 @@ func NewChatServiceClient(chatservice pb.ChatServiceClient, authservice pb.AuthS
 }
 
 func JoinGroup(groupname string, client *ChatServiceClient) error {
-	ctx := context.Background()
+	//adding grouname to metadata
+	//adding grouname to metadata
+	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname, "userid", strconv.Itoa(int(client.clientstore.GetUser().Id)))
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
 	user := client.clientstore.GetUser()
-	group :=client.clientstore.GetGroup()
+	group := client.clientstore.GetGroup()
 	if user.Name == "None" {
 		return fmt.Errorf("Please Login")
 	}
 	joinchat := &pb.JoinChat{
-		Newgroup: groupname,
+		Newgroup:  groupname,
 		User:      user,
 		Currgroup: group.Groupname,
 	}
@@ -102,9 +107,11 @@ func UserLogout(client *ChatServiceClient) bool {
 	return resp.Status
 }
 
+var wg = new(sync.WaitGroup)
+
 func GroupChat(client *ChatServiceClient) error {
-	//adding grouname to metadata
-	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname)
+
+	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname, "userid", strconv.Itoa(int(client.clientstore.GetUser().Id)))
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	stream, err := client.chatservice.GroupChat(ctx)
@@ -112,27 +119,33 @@ func GroupChat(client *ChatServiceClient) error {
 		return err
 	}
 
-	waitResponse := make(chan error)
+	
 	// go routine to receive responses
-	go receive(stream, waitResponse)
-
-	go send(stream, waitResponse, client)
-
-	<-waitResponse
+	// 
+	wg.Add(2)
+	go receive(stream)
+	
+	go send(stream, client)
+	log.Printf("Ended recieve stream before wait")
+	wg.Wait()
+	log.Printf("Ended recieve stream after wait")
+	
+	
+	log.Printf("Ended recieve stream after waitresponse")
 	return nil
 }
 
-func receive(stream pb.ChatService_GroupChatClient, waitResponse chan error) error {
+func receive(stream pb.ChatService_GroupChatClient) error {
+	defer wg.Done()
 	for {
 		res, err := stream.Recv()
-		if err == io.EOF {
-			log.Print("no more responses")
-			waitResponse <- nil
+		if err == io.EOF || res.Command== "q" {
+			log.Printf("no more responses")			
 			return err
 		}
 		if err != nil {
-			waitResponse <- fmt.Errorf("cannot receive stream response: %v", err)
-			return err
+			return  fmt.Errorf("cannot receive stream response: %v", err)
+			
 		}
 		command := res.Command
 		if command == "p" {
@@ -145,7 +158,8 @@ func receive(stream pb.ChatService_GroupChatClient, waitResponse chan error) err
 	}
 }
 
-func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client *ChatServiceClient) error {
+func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) error {
+	defer wg.Done()
 	for {
 		log.Printf("Enter the message in the stream:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -272,9 +286,8 @@ func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client
 			req := &pb.GroupChatRequest{
 				Action: logout,
 			}
-
 			stream.Send(req)
-			stream.CloseSend()
+			stream.CloseSend()			
 			return nil
 
 		default:

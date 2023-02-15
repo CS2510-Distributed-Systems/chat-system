@@ -20,12 +20,13 @@ func main() {
 
 	grpcserver := grpc.NewServer()
 	groupstore := service.NewInMemoryGroupStore()
+	clients := service.NewInMemoryConnStore()
 	userstore := service.NewInMemoryUserStore()
-	
-	chatserver := service.NewChatServiceServer(groupstore, userstore)
+
+	chatserver := service.NewChatServiceServer(groupstore, userstore, clients)
 
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
-	pb.RegisterAuthServiceServer(grpcserver,chatserver)
+	pb.RegisterAuthServiceServer(grpcserver, chatserver)
 
 	log.Printf("start server on port: %d", port)
 	Listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))

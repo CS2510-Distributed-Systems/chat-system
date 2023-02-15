@@ -2,6 +2,7 @@ package service
 
 import (
 	"chat-system/pb"
+	"context"
 	"fmt"
 	"log"
 	"reflect"
@@ -26,18 +27,15 @@ type GroupStore interface {
 	RemoveUser(user *pb.User, groupname string)
 }
 
-func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
-	group_master.mutex.Lock()
-	current_group_instance := group_master.GetGroup(groupname)
-	group_master.mutex.Unlock()
-	res_Participants := reflect.DeepEqual(group.Participants, current_group_instance.Participants)
-	res_Messages := reflect.DeepEqual(group.Messages, current_group_instance.Messages)
-	if !res_Participants {
-		return true
-	} else if !res_Messages {
-		return true
-	}
-	return false
+type ConnStore interface {
+	BroadCast(groupname string, resp *pb.GroupChatResponse) error
+	AddConn(stream pb.ChatService_GroupChatServer, client [2]string)
+	RemoveConn(client [2]string )
+}
+
+type InMemoryConnStore struct {
+	mutex   sync.RWMutex
+	clients map[pb.ChatService_GroupChatServer][2]string
 }
 
 type InMemoryUserStore struct {
@@ -48,6 +46,12 @@ type InMemoryUserStore struct {
 type InMemoryGroupStore struct {
 	mutex sync.RWMutex
 	Group map[string]*pb.Group
+}
+
+func NewInMemoryConnStore() *InMemoryConnStore {
+	return &InMemoryConnStore{
+		clients: make(map[pb.ChatService_GroupChatServer][2]string),
+	}
 }
 
 func NewInMemoryUserStore() *InMemoryUserStore {
@@ -61,6 +65,66 @@ func NewInMemoryGroupStore() *InMemoryGroupStore {
 	return &InMemoryGroupStore{
 		Group: make(map[string]*pb.Group, 0),
 	}
+}
+
+func (conn *InMemoryConnStore) BroadCast(groupname string, res *pb.GroupChatResponse) error {
+	for stream, name := range conn.clients {
+		if name[0] == groupname {
+			if stream.Context().Err() == context.Canceled || stream.Context().Err() == context.DeadlineExceeded {
+				delete(conn.clients, stream)
+				continue
+			}
+			stream.Send(res)
+
+		}
+	}
+
+	log.Printf("Broadcasted succesfully")
+	return nil
+}
+
+func (conn *InMemoryConnStore) AddConn(stream pb.ChatService_GroupChatServer, client [2]string) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+	if conn.clients == nil {
+		conn.clients = make(map[pb.ChatService_GroupChatServer][2]string)
+	}
+	currclient, found := conn.clients[stream]
+	if found && currclient == client {
+		log.Printf("Client already present")
+		return
+	}
+	conn.clients[stream] = client
+	log.Printf("Client added")
+}
+
+func (conn *InMemoryConnStore) RemoveConn(removeclient [2]string) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+	if conn.clients == nil {
+		log.Printf("No connection present")
+	}
+	for stream, client := range conn.clients {
+		if removeclient == client {
+			delete(conn.clients, stream)
+			return
+		}
+	}
+	log.Println("No record found in connection store")
+}
+
+func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
+	group_master.mutex.Lock()
+	current_group_instance := group_master.GetGroup(groupname)
+	group_master.mutex.Unlock()
+	res_Participants := reflect.DeepEqual(group.Participants, current_group_instance.Participants)
+	res_Messages := reflect.DeepEqual(group.Messages, current_group_instance.Messages)
+	if !res_Participants {
+		return true
+	} else if !res_Messages {
+		return true
+	}
+	return false
 }
 
 func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {

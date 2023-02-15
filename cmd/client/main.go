@@ -36,8 +36,9 @@ func main() {
 	}
 
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
+	log.Printf("Target : %v :%v ", conn.GetState(), conn.Target())
 	// defer conn.Close()
-	clientstore := service.NewInMemoryClientStore()
+	clientstore := service.NewInMemoryClientStore(conn)
 	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), pb.NewAuthServiceClient(conn),clientstore)
 
 	for {
@@ -81,6 +82,7 @@ func main() {
 				resp := service.UserLogout(chatclient)
 				if resp{
 					conn.Close()
+				
 					log.Println("close the program")
 					return
 				}else {
