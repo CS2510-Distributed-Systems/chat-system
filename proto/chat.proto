@@ -22,7 +22,8 @@ message Group {
 
 message JoinChat {
   User user = 1;
-  string groupname = 2;
+  string newgroup = 2;
+  string currgroup =3;
 }
 
 message AppendChat {

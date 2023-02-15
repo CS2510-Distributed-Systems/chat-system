@@ -36,12 +36,14 @@ func NewChatServiceClient(chatservice pb.ChatServiceClient, authservice pb.AuthS
 func JoinGroup(groupname string, client *ChatServiceClient) error {
 	ctx := context.Background()
 	user := client.clientstore.GetUser()
+	group :=client.clientstore.GetGroup()
 	if user.Name == "None" {
 		return fmt.Errorf("Please Login")
 	}
 	joinchat := &pb.JoinChat{
-		Groupname: groupname,
+		Newgroup: groupname,
 		User:      user,
+		Currgroup: group.Groupname,
 	}
 
 	req := &pb.JoinRequest{
@@ -116,7 +118,7 @@ func GroupChat(client *ChatServiceClient) error {
 
 	go send(stream, waitResponse, client)
 
-	
+	<-waitResponse
 	return nil
 }
 

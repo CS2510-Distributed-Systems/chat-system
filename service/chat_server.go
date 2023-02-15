@@ -18,7 +18,6 @@ type ChatServiceServer struct {
 	UserStore  UserStore
 }
 
-
 func NewChatServiceServer(groupstore GroupStore, userstore UserStore) *ChatServiceServer {
 	return &ChatServiceServer{
 		groupstore: groupstore,
@@ -50,16 +49,15 @@ func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (
 	return resp, nil
 }
 
-
 // rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	currentchat := req.GetJoinchat()
-	log.Printf("receive a group join request with name: %s", currentchat.Groupname)
-	// remove if user is already in a group	
-	s.groupstore.RemoveUser(currentchat.User,currentchat.Groupname)
+	log.Printf("receive a group join request with name: %s", currentchat.Newgroup)
+	// remove if user is already in a group
+	s.groupstore.RemoveUser(currentchat.User, currentchat.Currgroup)
 	// join a group
-	group_details, err := s.groupstore.JoinGroup(currentchat.Groupname, currentchat.User)
-	
+	group_details, err := s.groupstore.JoinGroup(currentchat.Newgroup, currentchat.User)
+
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
@@ -67,7 +65,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 	if err != nil {
 		log.Printf("Failed to join group %v", err)
 	}
-	log.Printf("Joined group %s", currentchat.Groupname)
+	log.Printf("Joined group %s", currentchat.Newgroup)
 	res := &pb.JoinResponse{
 		Group: group_details,
 	}
@@ -117,9 +115,9 @@ func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, r
 		if response {
 			log.Println("In Modified block")
 			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
-			go updateCurrentMapInstance(&group_instance, current_group_instance)
+			updateCurrentMapInstance(&group_instance, current_group_instance)
 			resp := &pb.GroupChatResponse{
-				Group: current_group_instance,
+				Group:   current_group_instance,
 				Command: "refreshed",
 			}
 			sendstream(stream, resp)
@@ -218,7 +216,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			command := "q"
 			user := req.GetLogout().User
 			s.UserStore.DeleteUser(user)
-			s.groupstore.RemoveUser(user,groupname)
+			s.groupstore.RemoveUser(user, groupname)
 			group := s.groupstore.GetGroup(groupname)
 			resp := &pb.GroupChatResponse{
 				Group:   group,
