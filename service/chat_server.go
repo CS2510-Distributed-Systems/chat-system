@@ -14,18 +14,20 @@ import (
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
 	pb.UnimplementedAuthServiceServer
-	groupstore GroupStore
-	UserStore  UserStore
+	groupstore  GroupStore
+	UserStore   UserStore
+	broadcaster Broadcaster
 }
 
-
-func NewChatServiceServer(groupstore GroupStore, userstore UserStore) *ChatServiceServer {
+func NewChatServiceServer(groupstore GroupStore, userstore UserStore, broadcaster Broadcaster) *ChatServiceServer {
 	return &ChatServiceServer{
-		groupstore: groupstore,
-		UserStore:  userstore,
+		groupstore:  groupstore,
+		UserStore:   userstore,
+		broadcaster: broadcaster,
 	}
 }
 
+// login rpc
 func (s *ChatServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	user_name := req.User.Name
 	log.Printf("Logging as: %v", user_name)
@@ -41,6 +43,7 @@ func (s *ChatServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*p
 	return res, nil
 }
 
+// logout rpc
 func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
 	s.UserStore.DeleteUser(req.User.User)
 	resp := &pb.LogoutResponse{
@@ -50,16 +53,15 @@ func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (
 	return resp, nil
 }
 
-
 // rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	currentchat := req.GetJoinchat()
 	log.Printf("receive a group join request with name: %s", currentchat.Groupname)
-	// remove if user is already in a group	
-	s.groupstore.RemoveUser(currentchat.User,currentchat.Groupname)
+	// remove if user is already in a group
+	// s.groupstore.RemoveUser(currentchat.User, currentchat.Groupname)
 	// join a group
 	group_details, err := s.groupstore.JoinGroup(currentchat.Groupname, currentchat.User)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
@@ -85,48 +87,60 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	}
 	groupname := md.Get("groupname")[0]
 
+	listener := s.broadcaster.subscribe()
 	errch := make(chan error)
-	resp := &pb.GroupChatResponse{
-		Group:   s.groupstore.GetGroup(groupname),
-		Command: "j",
-	}
-	go receivestream(stream, s, groupname)
-	log.Printf("Refresh group triggered")
-	go refreshgroup(stream, s, resp)
+	// resp := &pb.GroupChatResponse{
+	// 	Group:   s.groupstore.GetGroup(groupname),
+	// 	Command: "j",
+	// }
+	go receivestream(stream, s, groupname,listener)
+	go sendstream(stream, listener)
+	s.broadcaster.unsubscribe(listener)
+	// log.Printf("Refresh group triggered")
+	// go refreshgroup(stream, s, resp)
 
 	return <-errch
+}
+func sendstream(stream pb.ChatService_GroupChatServer, listener <-chan *pb.GroupChatResponse) {
+	for {
+		for i := range listener {
+			log.Printf("%v particitpants", i.Group.Groupname)
+			stream.Send(i)
+		}
+	}
 }
 
 var wg sync.WaitGroup
 var mutex = &sync.RWMutex{}
 
-func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, resp *pb.GroupChatResponse) {
-	//Update_Chat_Sent := false
+// func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, resp *pb.GroupChatResponse) {
+// 	//Update_Chat_Sent := false
 
-	var group_instance = pb.Group{
-		GroupID:      0,
-		Groupname:    "",
-		Participants: make(map[uint32]string),
-		Messages:     make(map[uint32]*pb.ChatMessage),
-	}
+// 	var group_instance = pb.Group{
+// 		GroupID:      0,
+// 		Groupname:    "",
+// 		Participants: make(map[uint32]string),
+// 		Messages:     make(map[uint32]*pb.ChatMessage),
+// 	}
 
-	for {
-		mutex.Lock()
-		response := s.groupstore.Modified(group_instance, resp.GetGroup().Groupname)
-		mutex.Unlock()
-		if response {
-			log.Println("In Modified block")
-			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
-			go updateCurrentMapInstance(&group_instance, current_group_instance)
-			resp := &pb.GroupChatResponse{
-				Group: current_group_instance,
-				Command: "refreshed",
-			}
-			sendstream(stream, resp)
-			log.Printf("Refresh group sent the updated group to clients")
-		}
-	}
-}
+// 	for {
+// 		mutex.Lock()
+// 		response := s.groupstore.Modified(group_instance, resp.GetGroup().Groupname)
+// 		mutex.Unlock()
+// 		if response {
+// 			log.Println("In Modified block")
+// 			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
+// 			go updateCurrentMapInstance(&group_instance, current_group_instance)
+// 			resp := &pb.GroupChatResponse{
+// 				Group:   current_group_instance,
+// 				Command: "refreshed",
+// 			}
+// 			// sendstream(stream, resp)
+// 			log.Printf("Refresh group sent the updated group to clients")
+// 		}
+// 	}
+// }
+
 func updateCurrentMapInstance(group_instance *pb.Group, latest_group_data *pb.Group) {
 	mutex.Lock()
 	for key, value := range latest_group_data.Participants {
@@ -140,12 +154,13 @@ func updateCurrentMapInstance(group_instance *pb.Group, latest_group_data *pb.Gr
 	mutex.Unlock()
 }
 
-func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string) {
+func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string,listener <-chan *pb.GroupChatResponse) {
 
 	for {
 		req, err := stream.Recv()
 		if err != nil {
-			log.Printf("error in receiving")
+			log.Printf("streaming ended")
+
 			break
 		}
 		switch req.GetAction().(type) {
@@ -164,7 +179,8 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				Group:   group,
 				Command: command,
 			}
-			sendstream(stream, resp)
+			s.broadcaster.getsource() <- resp
+			
 
 		case *pb.GroupChatRequest_Like:
 			command := "l"
@@ -184,7 +200,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
-			sendstream(stream, resp)
+			s.broadcaster.getsource() <- resp
 
 		case *pb.GroupChatRequest_Unlike:
 			command := "r"
@@ -204,7 +220,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
-			sendstream(stream, resp)
+			s.broadcaster.getsource() <- resp
 
 		case *pb.GroupChatRequest_Print:
 			command := "p"
@@ -212,28 +228,23 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
-			sendstream(stream, resp)
+			s.broadcaster.getsource() <- resp
 
 		case *pb.GroupChatRequest_Logout:
 			command := "q"
 			user := req.GetLogout().User
 			s.UserStore.DeleteUser(user)
-			s.groupstore.RemoveUser(user,groupname)
+			s.groupstore.RemoveUser(user, groupname)
 			group := s.groupstore.GetGroup(groupname)
 			resp := &pb.GroupChatResponse{
 				Group:   group,
 				Command: command,
 			}
-			sendstream(stream, resp)
+			s.broadcaster.getsource() <- resp
 
 		default:
 			log.Printf("do nothing")
 		}
 
 	}
-}
-
-func sendstream(stream pb.ChatService_GroupChatServer, resp *pb.GroupChatResponse) {
-	stream.Send(resp)
-	log.Printf("group data sent to the stream")
 }

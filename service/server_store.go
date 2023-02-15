@@ -2,6 +2,7 @@ package service
 
 import (
 	"chat-system/pb"
+	"context"
 	"fmt"
 	"log"
 	"reflect"
@@ -213,4 +214,89 @@ func (group_master *InMemoryGroupStore) RemoveUser(user *pb.User, groupname stri
 
 	delete(group_master.Group[groupname].Participants, user.Id)
 
+}
+
+// braodcaster Model
+type Broadcaster interface {
+	subscribe() <-chan *pb.GroupChatResponse
+	unsubscribe(<-chan *pb.GroupChatResponse)
+	getsource()chan *pb.GroupChatResponse
+}
+type broadcaster struct {
+	source       chan *pb.GroupChatResponse
+	clients      []chan *pb.GroupChatResponse
+	addclient    chan chan *pb.GroupChatResponse
+	removeclient chan (<-chan *pb.GroupChatResponse)
+}
+
+func (bc *broadcaster) getsource() chan *pb.GroupChatResponse {
+	return bc.source
+}
+
+func (bc *broadcaster) subscribe() <-chan *pb.GroupChatResponse {
+	newclient := make(chan *pb.GroupChatResponse)
+	bc.addclient <- newclient
+	return newclient
+}
+
+func (bc *broadcaster) unsubscribe(channel <-chan *pb.GroupChatResponse) {
+	bc.removeclient <- channel
+}
+func NewBroadcaster(ctx context.Context, source chan *pb.GroupChatResponse) *broadcaster {
+	broadcastservice := &broadcaster{
+		source:       source,
+		clients:      make([]chan *pb.GroupChatResponse, 0),
+		addclient:    make(chan chan *pb.GroupChatResponse),
+		removeclient: make(chan (<-chan *pb.GroupChatResponse)),
+	}
+	go broadcastservice.serve(ctx)
+	return broadcastservice
+}
+
+func (bc *broadcaster) serve(ctx context.Context) {
+	log.Printf("initializing the Broadcaster")
+	defer func() {
+		for _, client := range bc.clients {
+			if client != nil {
+				close(client)
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("context is Done")
+			return
+		case newclient := <-bc.addclient:
+			bc.clients = append(bc.clients, newclient)
+			log.Printf("new client subscribed : %v", len(bc.clients))
+		case removeclient := <-bc.removeclient:
+			for i, ch := range bc.clients {
+				if ch == removeclient {
+					bc.clients[i] = bc.clients[len(bc.clients)-1]
+					bc.clients = bc.clients[:len(bc.clients)-1]
+					close(ch)
+					break
+				}
+			}
+		case val, ok := <-bc.source:
+			if !ok {
+				log.Println("Something is fishing. source listened but couldnt broadcast")
+				return
+			}
+
+			for _, client := range bc.clients {
+				log.Println("looping through the subscribed clients. ")
+				if client != nil {
+					select {
+					case client <- val:
+						log.Println("Broadcasting to: ")
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
+	}
 }

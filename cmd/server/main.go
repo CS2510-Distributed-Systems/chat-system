@@ -3,6 +3,7 @@ package main
 import (
 	"chat-system/pb"
 	"chat-system/service"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -21,8 +22,8 @@ func main() {
 	grpcserver := grpc.NewServer()
 	groupstore := service.NewInMemoryGroupStore()
 	userstore := service.NewInMemoryUserStore()
-	
-	chatserver := service.NewChatServiceServer(groupstore, userstore)
+	broadcaster := service.NewBroadcaster(context.Background(), make(chan *pb.GroupChatResponse))
+	chatserver := service.NewChatServiceServer(groupstore, userstore, broadcaster)
 
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
 	pb.RegisterAuthServiceServer(grpcserver,chatserver)
