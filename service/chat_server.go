@@ -18,6 +18,7 @@ type ChatServiceServer struct {
 	UserStore  UserStore
 }
 
+
 func NewChatServiceServer(groupstore GroupStore, userstore UserStore) *ChatServiceServer {
 	return &ChatServiceServer{
 		groupstore: groupstore,
@@ -49,17 +50,16 @@ func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (
 	return resp, nil
 }
 
-func CheckUserCurrentGroup(s *ChatServiceServer, req *pb.JoinRequest) {
-	user_data := req.Joinchat.GetUser()
-	s.groupstore.RemoveUser(user_data)
-
-}
 
 // rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
-	group := req.GetJoinchat()
-	log.Printf("receive a group join request with name: %s", group.Groupname)
-	group_details, err := s.groupstore.JoinGroup(group.Groupname, group.User)
+	currentchat := req.GetJoinchat()
+	log.Printf("receive a group join request with name: %s", currentchat.Groupname)
+	// remove if user is already in a group	
+	s.groupstore.RemoveUser(currentchat.User,currentchat.Groupname)
+	// join a group
+	group_details, err := s.groupstore.JoinGroup(currentchat.Groupname, currentchat.User)
+	
 	if err != nil {
 		return nil, fmt.Errorf("error while deepcopy user: %w", err)
 	}
@@ -67,7 +67,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 	if err != nil {
 		log.Printf("Failed to join group %v", err)
 	}
-	log.Printf("Joined group %s", group.Groupname)
+	log.Printf("Joined group %s", currentchat.Groupname)
 	res := &pb.JoinResponse{
 		Group: group_details,
 	}
@@ -87,13 +87,12 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 
 	errch := make(chan error)
 	resp := &pb.GroupChatResponse{
-		Group: s.groupstore.GetGroup(groupname),
+		Group:   s.groupstore.GetGroup(groupname),
 		Command: "j",
 	}
 	go receivestream(stream, s, groupname)
-	go sendstream(stream, resp)
 	log.Printf("Refresh group triggered")
-	go refreshgroup(stream, s,resp)
+	go refreshgroup(stream, s, resp)
 
 	return <-errch
 }
@@ -119,7 +118,11 @@ func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, r
 			log.Println("In Modified block")
 			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
 			go updateCurrentMapInstance(&group_instance, current_group_instance)
-			sendstream(stream, &pb.GroupChatResponse{})
+			resp := &pb.GroupChatResponse{
+				Group: current_group_instance,
+				Command: "refreshed",
+			}
+			sendstream(stream, resp)
 			log.Printf("Refresh group sent the updated group to clients")
 		}
 	}
@@ -162,6 +165,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				Command: command,
 			}
 			sendstream(stream, resp)
+
 		case *pb.GroupChatRequest_Like:
 			command := "l"
 			group := req.GetLike().Group
@@ -177,7 +181,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				log.Printf("%s", err)
 			}
 			resp := &pb.GroupChatResponse{
-				Group:   group,
+				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
 			sendstream(stream, resp)
@@ -197,16 +201,15 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 				log.Printf("some error occured in unliking the message: %s", err)
 			}
 			resp := &pb.GroupChatResponse{
-				Group:   group,
+				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
 			sendstream(stream, resp)
 
 		case *pb.GroupChatRequest_Print:
 			command := "p"
-			group := s.groupstore.GetGroup(groupname)
 			resp := &pb.GroupChatResponse{
-				Group:   group,
+				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
 			sendstream(stream, resp)
@@ -215,6 +218,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			command := "q"
 			user := req.GetLogout().User
 			s.UserStore.DeleteUser(user)
+			s.groupstore.RemoveUser(user,groupname)
 			group := s.groupstore.GetGroup(groupname)
 			resp := &pb.GroupChatResponse{
 				Group:   group,

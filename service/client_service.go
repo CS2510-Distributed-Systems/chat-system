@@ -116,7 +116,7 @@ func GroupChat(client *ChatServiceClient) error {
 
 	go send(stream, waitResponse, client)
 
-	err = <-waitResponse
+	
 	return nil
 }
 
@@ -132,8 +132,14 @@ func receive(stream pb.ChatService_GroupChatClient, waitResponse chan error) err
 			waitResponse <- fmt.Errorf("cannot receive stream response: %v", err)
 			return err
 		}
+		command := res.Command
+		if command == "p" {
+			log.Println("printing all the messages")
+			PrintAll(res.Group)
+		} else {
+			PrintRecent(res.Group)
+		}
 
-		Print(res.GetGroup())
 	}
 }
 
@@ -223,13 +229,13 @@ func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client
 				stream.Send(req)
 			}
 
-			case "p":{
+		case "p":
+			{
 				print := &pb.GroupChatRequest_Print{
 					Print: &pb.PrintChat{
-						User: client.clientstore.GetUser(),
+						User:      client.clientstore.GetUser(),
 						Groupname: client.clientstore.GetGroup().Groupname,
 					},
-					
 				}
 				req := &pb.GroupChatRequest{
 					Action: print,
@@ -266,6 +272,7 @@ func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client
 			}
 
 			stream.Send(req)
+			stream.CloseSend()
 			return nil
 
 		default:
@@ -276,8 +283,7 @@ func send(stream pb.ChatService_GroupChatClient, waitResponse chan error, client
 
 }
 
-func Print(group *pb.Group) {
-
+func PrintRecent(group *pb.Group) {
 	groupname := group.GetGroupname()
 	participants := maps.Values(group.GetParticipants())
 	chatmessages := group.GetMessages()
@@ -293,6 +299,25 @@ func Print(group *pb.Group) {
 			fmt.Printf("%v. %v: %v                     likes: %v\n", i, chatmessage.MessagedBy.Name, chatmessage.Message, len(chatmessage.LikedBy))
 		}
 		print_recent--
+	}
+
+}
+func PrintAll(group *pb.Group) {
+	groupname := group.GetGroupname()
+	participants := maps.Values(group.GetParticipants())
+	chatmessages := group.GetMessages()
+	chatlength := len(chatmessages)
+	fmt.Printf("Group: %v\n", groupname)
+	fmt.Printf("Participants: %v\n", participants)
+	count := 0
+	for count < chatlength {
+		i := uint32(count)
+
+		chatmessage, found := chatmessages[i]
+		if found {
+			fmt.Printf("%v. %v: %v                     likes: %v\n", i, chatmessage.MessagedBy.Name, chatmessage.Message, len(chatmessage.LikedBy))
+		}
+		count++
 	}
 
 }

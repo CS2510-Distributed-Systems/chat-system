@@ -17,13 +17,13 @@ type UserStore interface {
 }
 
 type GroupStore interface {
-	GetGroup(groupname string) (*pb.Group)
+	GetGroup(groupname string) *pb.Group
 	Modified(group pb.Group, groupname string) bool
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.UnLikeMessage) error
-	RemoveUser(user *pb.User)
+	RemoveUser(user *pb.User, groupname string)
 }
 
 func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
@@ -84,8 +84,7 @@ func (userstore *InMemoryUserStore) DeleteUser(user *pb.User) {
 	delete(userstore.User, user.Id)
 }
 
-
-func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group) {
+func (group_master *InMemoryGroupStore) GetGroup(groupname string) *pb.Group {
 	return group_master.Group[groupname]
 }
 
@@ -93,6 +92,7 @@ func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.Use
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
 	//try finding the group in the groupstore
+
 	group, found := group_master.Group[groupname]
 	if found {
 		group.Participants[user.GetId()] = user.GetName()
@@ -147,7 +147,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	likeduser := likemessage.User
 
 	//get the group
-	group:= group_master.GetGroup(groupname)
+	group := group_master.GetGroup(groupname)
 	//validate and get the message to be liked
 	message, found := group.Messages[likedmsgnumber]
 	if !found {
@@ -200,14 +200,17 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMe
 	return nil
 }
 
-func (group_master *InMemoryGroupStore) RemoveUser(curr_req *pb.User) {
-	for _, value := range group_master.Group {
-		if value.Participants[curr_req.Id] != "" {
-			delete(value.Participants, curr_req.Id)
-			break
-		}
+func (group_master *InMemoryGroupStore) RemoveUser(user *pb.User, groupname string) {
+	groupmap := group_master.Group[groupname]
+	if groupmap == nil {
+		return
+	} else if groupmap.Participants == nil {
+		return
+	} else if groupmap.Participants[user.Id] == "" {
+
+		return
 	}
 
+	delete(group_master.Group[groupname].Participants, user.Id)
+
 }
-
-
