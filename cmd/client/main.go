@@ -3,20 +3,18 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 
 	"chat-system/pb"
 	"chat-system/service"
-	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 
-	// "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	// "google.golang.org/grpc/status"
-	"strings"
 )
 
 func main() {
@@ -40,55 +38,64 @@ func main() {
 	log.Printf("Dialing to server %s:%v", serverAddr, port)
 	// defer conn.Close()
 	clientstore := service.NewInMemoryClientStore()
-	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), clientstore)
-	authclient := service.NewAuthServiceClient(pb.NewAuthServiceClient(conn),clientstore)
+	chatclient := service.NewChatServiceClient(pb.NewChatServiceClient(conn), pb.NewAuthServiceClient(conn),clientstore)
 
-	_, err = readInput(chatclient, authclient)
-	conn.Close()
-
-}
-
-func readInput(chatclient *service.ChatServiceClient, authclient *service.UserAuthServiceClient) (uint32, error) {
 	for {
+		//read input
 		log.Printf("Enter the message:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatalf("Cannot read the message, please enter again\n")
 		}
 		msg = strings.Trim(msg, "\r\n")
+
 		args := strings.Split(msg, " ")
 		cmd := strings.TrimSpace(args[0])
+		//args[1] = strings.Join(args[1:], " ")
+		arg := strings.Join(args[1:], " ")
 
 		switch cmd {
-		case "q":
-			//closes the program
-			fmt.Println("close the program")
-			return 1, nil
-
 		case "u":
-			//user login
-			username := strings.TrimSpace(args[1])
-			_, err := service.UserLogin(username, authclient)
-			if err != nil {
-				log.Printf("Failed to login: %v", err)
-
+			username := strings.TrimSpace(arg)
+			err := service.UserLogin(username, chatclient)
+			if err != nil{
+				fmt.Println(err)
+				return
 			}
+
 		case "j":
-			//join the group
-			groupname := strings.TrimSpace(args[1])
-			err = service.JoinGroup(groupname, chatclient)
-			if err != nil {
-				log.Printf("Failed to join a group: %v", err)
-				continue
+			if clientstore.GetUser().GetName() == "" {
+				log.Println("Please login to join a group.")
+			} else {
+				//join the group
+				groupname := strings.TrimSpace(arg)
+				service.JoinGroup(groupname, chatclient)
+				//start streaming
+				service.GroupChat(chatclient)
 			}
-			//start stream
-			log.Printf("starting streaming")
-			service.GroupChat(chatclient)
+		case "a", "l", "r":
+			log.Println("please Enter the chat room")
+
+		case "q":
+			if clientstore.GetUser().Name != "" {
+				resp := service.UserLogout(chatclient)
+				if resp{
+					conn.Close()
+					log.Println("close the program")
+					return
+				}else {
+					log.Println("Failed to exit program. Please try again.")
+				}
+			} else {
+				conn.Close()
+				log.Println("close the program")
+				return
+			}
+
 		default:
+			//helpcode//
 			log.Printf("incorrect command, please enter again\n")
-
 		}
-
 	}
 
 }

@@ -19,12 +19,12 @@ type InMemoryClientStore struct {
 func NewInMemoryClientStore() *InMemoryClientStore {
 	group := &pb.Group{
 		GroupID:      0,
-		Groupname:    "None",
+		Groupname:    "",
 		Participants: make(map[uint32]string),
 		Messages:     make(map[uint32]*pb.ChatMessage),
 	}
 	active_user := &pb.User{
-		Name: "None",
+		Name: "",
 		Id:   0,
 	}
 	return &InMemoryClientStore{

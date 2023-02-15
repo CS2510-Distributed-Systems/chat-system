@@ -9,4 +9,8 @@ message User {
     string name =2;
 }
 
+message Logout{
+    User user =1;
+}
+
 

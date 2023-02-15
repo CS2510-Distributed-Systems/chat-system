@@ -7,19 +7,52 @@ import (
 	"log"
 	"sync"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
 )
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
-
+	pb.UnimplementedAuthServiceServer
 	groupstore GroupStore
+	UserStore  UserStore
 }
 
-func NewChatServiceServer(groupstore GroupStore) *ChatServiceServer {
+func NewChatServiceServer(groupstore GroupStore, userstore UserStore) *ChatServiceServer {
 	return &ChatServiceServer{
 		groupstore: groupstore,
+		UserStore:  userstore,
 	}
+}
+
+func (s *ChatServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+	user_name := req.User.Name
+	log.Printf("Logging as: %v", user_name)
+	newUser := &pb.User{
+		Id:   uuid.New().ID(),
+		Name: user_name,
+	}
+	s.UserStore.SaveUser(newUser)
+	res := &pb.LoginResponse{
+		User: req.GetUser(),
+	}
+
+	return res, nil
+}
+
+func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
+	s.UserStore.DeleteUser(req.User.User)
+	resp := &pb.LogoutResponse{
+		Status: true,
+	}
+	log.Println("User deleted")
+	return resp, nil
+}
+
+func CheckUserCurrentGroup(s *ChatServiceServer, req *pb.JoinRequest) {
+	user_data := req.Joinchat.GetUser()
+	s.groupstore.RemoveUser(user_data)
+
 }
 
 // rpc
@@ -53,10 +86,14 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	groupname := md.Get("groupname")[0]
 
 	errch := make(chan error)
-	go receivestream(stream, s.groupstore, groupname)
-	go sendstream(stream, s.groupstore, groupname)
+	resp := &pb.GroupChatResponse{
+		Group: s.groupstore.GetGroup(groupname),
+		Command: "j",
+	}
+	go receivestream(stream, s, groupname)
+	go sendstream(stream, resp)
 	log.Printf("Refresh group triggered")
-	go refreshgroup(stream, s, groupname)
+	go refreshgroup(stream, s,resp)
 
 	return <-errch
 }
@@ -64,7 +101,7 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 var wg sync.WaitGroup
 var mutex = &sync.RWMutex{}
 
-func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string) {
+func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, resp *pb.GroupChatResponse) {
 	//Update_Chat_Sent := false
 
 	var group_instance = pb.Group{
@@ -76,16 +113,13 @@ func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, g
 
 	for {
 		mutex.Lock()
-		response := s.groupstore.Modified(group_instance, groupname)
+		response := s.groupstore.Modified(group_instance, resp.GetGroup().Groupname)
 		mutex.Unlock()
 		if response {
 			log.Println("In Modified block")
-			var current_group_instance, err = s.groupstore.GetGroup(groupname)
-			if err != nil {
-				log.Printf("failed to get the group %s", err)
-			}
+			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
 			go updateCurrentMapInstance(&group_instance, current_group_instance)
-			sendstream(stream, s.groupstore, groupname)
+			sendstream(stream, &pb.GroupChatResponse{})
 			log.Printf("Refresh group sent the updated group to clients")
 		}
 	}
@@ -103,7 +137,7 @@ func updateCurrentMapInstance(group_instance *pb.Group, latest_group_data *pb.Gr
 	mutex.Unlock()
 }
 
-func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {
+func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string) {
 
 	for {
 		req, err := stream.Recv()
@@ -113,16 +147,23 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 		}
 		switch req.GetAction().(type) {
 		case *pb.GroupChatRequest_Append:
+			command := "a"
 			appendchat := &pb.AppendChat{
 				Group:       req.GetAppend().GetGroup(),
 				Chatmessage: req.GetAppend().GetChatmessage(),
 			}
-			err := groupstore.AppendMessage(appendchat)
+			err := s.groupstore.AppendMessage(appendchat)
 			if err != nil {
 				log.Printf("cannot save the message %s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+			group := s.groupstore.GetGroup(groupname)
+			resp := &pb.GroupChatResponse{
+				Group:   group,
+				Command: command,
+			}
+			sendstream(stream, resp)
 		case *pb.GroupChatRequest_Like:
+			command := "l"
 			group := req.GetLike().Group
 			msgId := req.GetLike().Messageid
 			user := req.GetLike().User
@@ -131,13 +172,18 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 				Messageid: msgId,
 				User:      user,
 			}
-			err := groupstore.LikeMessage(likemessage)
+			err := s.groupstore.LikeMessage(likemessage)
 			if err != nil {
 				log.Printf("%s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+			resp := &pb.GroupChatResponse{
+				Group:   group,
+				Command: command,
+			}
+			sendstream(stream, resp)
 
 		case *pb.GroupChatRequest_Unlike:
+			command := "r"
 			group := req.GetUnlike().Group
 			msgId := req.GetUnlike().Messageid
 			user := req.GetUnlike().User
@@ -146,15 +192,35 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 				Messageid: msgId,
 				User:      user,
 			}
-			groupstore.UnLikeMessage(unlikemessage)
+			s.groupstore.UnLikeMessage(unlikemessage)
 			if err != nil {
 				log.Printf("some error occured in unliking the message: %s", err)
 			}
-			sendstream(stream, groupstore, groupname)
+			resp := &pb.GroupChatResponse{
+				Group:   group,
+				Command: command,
+			}
+			sendstream(stream, resp)
 
 		case *pb.GroupChatRequest_Print:
-			fmt.Printf("Need to implement this feature")
-			sendstream(stream, groupstore, groupname)
+			command := "p"
+			group := s.groupstore.GetGroup(groupname)
+			resp := &pb.GroupChatResponse{
+				Group:   group,
+				Command: command,
+			}
+			sendstream(stream, resp)
+
+		case *pb.GroupChatRequest_Logout:
+			command := "q"
+			user := req.GetLogout().User
+			s.UserStore.DeleteUser(user)
+			group := s.groupstore.GetGroup(groupname)
+			resp := &pb.GroupChatResponse{
+				Group:   group,
+				Command: command,
+			}
+			sendstream(stream, resp)
 
 		default:
 			log.Printf("do nothing")
@@ -163,14 +229,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, groupstore GroupStore,
 	}
 }
 
-func sendstream(stream pb.ChatService_GroupChatServer, groupstore GroupStore, groupname string) {
-	group, err := groupstore.GetGroup(groupname)
-	if err != nil {
-		log.Printf("error sending group to client %s", err)
-	}
-	res := &pb.GroupChatResponse{
-		Group: group,
-	}
-	stream.Send(res)
-	log.Printf("sending group data of: %s", groupname)
+func sendstream(stream pb.ChatService_GroupChatServer, resp *pb.GroupChatResponse) {
+	stream.Send(resp)
+	log.Printf("group data sent to the stream")
 }

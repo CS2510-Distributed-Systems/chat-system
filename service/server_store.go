@@ -13,23 +13,23 @@ import (
 
 type UserStore interface {
 	SaveUser(user *pb.User) error
+	DeleteUser(User *pb.User)
 }
+
 type GroupStore interface {
-	GetGroup(groupname string) (*pb.Group, error)
+	GetGroup(groupname string) (*pb.Group)
 	Modified(group pb.Group, groupname string) bool
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
 	UnLikeMessage(unlike *pb.UnLikeMessage) error
+	RemoveUser(user *pb.User)
 }
 
 func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
 	group_master.mutex.Lock()
-	current_group_instance, err := group_master.GetGroup(groupname)
+	current_group_instance := group_master.GetGroup(groupname)
 	group_master.mutex.Unlock()
-	if err != nil {
-		log.Printf("failed to get the group %s", err)
-	}
 	res_Participants := reflect.DeepEqual(group.Participants, current_group_instance.Participants)
 	res_Messages := reflect.DeepEqual(group.Messages, current_group_instance.Messages)
 	if !res_Participants {
@@ -80,8 +80,13 @@ func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {
 	return nil
 }
 
-func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group, error) {
-	return group_master.Group[groupname], nil
+func (userstore *InMemoryUserStore) DeleteUser(user *pb.User) {
+	delete(userstore.User, user.Id)
+}
+
+
+func (group_master *InMemoryGroupStore) GetGroup(groupname string) (*pb.Group) {
+	return group_master.Group[groupname]
 }
 
 func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.User) (*pb.Group, error) {
@@ -125,10 +130,7 @@ func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat)
 	}
 	log.Printf("chatmessage arrived is %v", chatmessage)
 	//get group and messagenumber
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group := group_master.GetGroup(groupname)
 	chatmessagenumber := len(group.Messages)
 	//append in the group
 	group.Messages[uint32(chatmessagenumber)] = chatmessage
@@ -145,10 +147,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	likeduser := likemessage.User
 
 	//get the group
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group:= group_master.GetGroup(groupname)
 	//validate and get the message to be liked
 	message, found := group.Messages[likedmsgnumber]
 	if !found {
@@ -156,7 +155,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	}
 	log.Printf("getting the message : %v", message)
 	//like it only if he is not the sender of the message
-	if message.MessagedBy == likeduser {
+	if message.MessagedBy.Id == likeduser.Id {
 		return fmt.Errorf("cannot like you own message")
 	}
 	//check if the like is already present
@@ -179,17 +178,14 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMe
 	unlikeduser := unlikemessage.User
 
 	//get the group
-	group, err := group_master.GetGroup(groupname)
-	if err != nil {
-		return fmt.Errorf("cannot find the group %v", groupname)
-	}
+	group := group_master.GetGroup(groupname)
 	//validate and get the message to be liked
 	message, found := group.Messages[unlikedmsgnumber]
 	if !found {
 		return fmt.Errorf("please enter valid message")
 	}
 	//like it only if he is not the sender of the message
-	if message.MessagedBy == unlikeduser {
+	if message.MessagedBy.Id == unlikeduser.Id {
 		return fmt.Errorf("cannot unlike you own message")
 	}
 	//check if the like is present
@@ -203,3 +199,15 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMe
 	log.Printf("user %s unliked a message", username)
 	return nil
 }
+
+func (group_master *InMemoryGroupStore) RemoveUser(curr_req *pb.User) {
+	for _, value := range group_master.Group {
+		if value.Participants[curr_req.Id] != "" {
+			delete(value.Participants, curr_req.Id)
+			break
+		}
+	}
+
+}
+
+
