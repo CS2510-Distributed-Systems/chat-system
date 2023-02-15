@@ -14,16 +14,16 @@ import (
 
 func main() {
 	// Process commandline arguments
-	address := flag.String("Address", "localhost", "server address")
+	address := flag.String("Address", "0.0.0.0", "server address")
 	portArg := flag.Int("port", 12000, "the server port")
 	flag.Parse()
 	port := *portArg
 
+	//register the server
 	grpcserver := grpc.NewServer()
 	groupstore := service.NewInMemoryGroupStore()
 	clients := service.NewInMemoryConnStore()
 	userstore := service.NewInMemoryUserStore()
-
 	chatserver := service.NewChatServiceServer(groupstore, userstore, clients)
 
 	pb.RegisterChatServiceServer(grpcserver, chatserver)
