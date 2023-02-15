@@ -119,46 +119,81 @@ func GroupChat(client *ChatServiceClient) error {
 		return err
 	}
 
-	
 	// go routine to receive responses
-	// 
+	//
+	waitResponse := make(chan error)
 	wg.Add(2)
-	go receive(stream)
-	
+	// go receive(stream,waitResponse)
 	go send(stream, client)
+	go func()error {
+		defer log.Println("Receive stream ended")
+		defer wg.Done()
+		for {
+			err := contextError(stream.Context())
+			if err != nil {
+			return err
+		}
+			res, err := stream.Recv()
+			if err == io.EOF {
+				log.Print("no more responses")
+
+				waitResponse <- nil
+				return err
+			}
+			if err != nil {
+				waitResponse <- fmt.Errorf("cannot receive stream response: %v", err)
+				return err
+			}
+			command := res.Command
+			if command == "p" {
+				log.Println("printing all the messages")
+				PrintAll(res.Group)
+			} else {
+				PrintRecent(res.Group)
+			}
+
+			log.Printf("received response: %v", res)
+		}
+	}()
+
 	log.Printf("Ended recieve stream before wait")
 	wg.Wait()
 	log.Printf("Ended recieve stream after wait")
-	
-	
+
 	log.Printf("Ended recieve stream after waitresponse")
-	return nil
+	err = <-waitResponse
+	return err
 }
 
-func receive(stream pb.ChatService_GroupChatClient) error {
-	defer wg.Done()
-	for {
-		res, err := stream.Recv()
-		if err == io.EOF || res.Command== "q" {
-			log.Printf("no more responses")			
-			return err
-		}
-		if err != nil {
-			return  fmt.Errorf("cannot receive stream response: %v", err)
-			
-		}
-		command := res.Command
-		if command == "p" {
-			log.Println("printing all the messages")
-			PrintAll(res.Group)
-		} else {
-			PrintRecent(res.Group)
-		}
+// func receive(stream pb.ChatService_GroupChatClient, waitresponse chan error) error {
+// 	defer wg.Done()
+// 	for {
+// 		log.Println("Stil recciving...")
+// 		stream.Context().Done()
+// 		res, err := stream.Recv()
+// 		log.Printf("res : %v , err : %v", res, err)
+// 		if err == io.EOF || res.Command == "q" {
+// 			waitresponse <- nil
+// 			log.Printf("no more responses")
+// 			return err
+// 		}
+// 		if err != nil {
+// 			return fmt.Errorf("cannot receive stream response: %v", err)
 
-	}
-}
+// 		}
+// 		command := res.Command
+// 		if command == "p" {
+// 			log.Println("printing all the messages")
+// 			PrintAll(res.Group)
+// 		} else {
+// 			PrintRecent(res.Group)
+// 		}
+
+// 	}
+// }
 
 func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) error {
+	defer log.Println("Send stream ended")
 	defer wg.Done()
 	for {
 		log.Printf("Enter the message in the stream:")
@@ -287,7 +322,11 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 				Action: logout,
 			}
 			stream.Send(req)
-			stream.CloseSend()			
+			// err = stream.CloseSend()
+			// if err != nil {
+			// 	return fmt.Errorf("cannot close send: %v", err)
+			// }
+			log.Println("closing the stream.")
 			return nil
 
 		default:

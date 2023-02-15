@@ -3,12 +3,16 @@ package service
 import (
 	"chat-system/pb"
 	"context"
+	"errors"
+	"io"
 	"log"
 	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type ChatServiceServer struct {
@@ -86,7 +90,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 // streaming rpc
 func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) error {
 	//fetching the current group of the client from the rpc context.
-	ctx, cancel := context.WithCancel(stream.Context())
+	_, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
@@ -105,37 +109,48 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 		Command: "j",
 	}
 	s.clients.BroadCast(groupname, resp)
+	// waitresponse := make(chan error)
 	wg.Add(2)
-	go SendBroadcast(groupname, resp, listener, s)
-	go receivestream(stream, s, groupname, listener)
-	log.Printf("Stream ended for %v. Please join other group",groupname)
-	wg.Wait()
-	// go refreshgroup(stream, s, resp)
-	<-ctx.Done()
-	return <-errch
-}
 
-func SendBroadcast(groupname string, resp *pb.GroupChatResponse, listener chan string, s *ChatServiceServer) {
-	wg.Done()
-	for {
-		command := <-listener
-		if command == "q"{
+	go receivestream(stream, s, groupname, listener)
+	// go SendBroadcast(groupname, resp, listener, s,&waitresponse)
+	// err := <-waitresponse
+	go func() error {
+		defer wg.Done()
+		defer log.Println("send server stream ended")
+		for {
+			command := <-listener
+			if command == "q" {
+				resp := &pb.GroupChatResponse{
+					Group:   s.groupstore.GetGroup(groupname),
+					Command: command,
+				}
+				s.clients.BroadCast(groupname, resp)
+				err := errors.New("Graceful shutdown requested")
+				stream.SendMsg(err)
+				// waitresponse <- err
+				return err
+			}
+
 			resp := &pb.GroupChatResponse{
-				Group:   nil,
+				Group:   s.groupstore.GetGroup(groupname),
 				Command: command,
 			}
 			s.clients.BroadCast(groupname, resp)
-			return
+
 		}
-		
-		resp := &pb.GroupChatResponse{
-			Group:   s.groupstore.GetGroup(groupname),
-			Command: command,
-		}
-		s.clients.BroadCast(groupname, resp)
-		
-	}
+	}()
+
+	wg.Wait()
+	log.Printf("Stream ended for %v. Please join other group", groupname)
+	// go refreshgroup(stream, s, resp)
+
+	return <-errch
 }
+
+// func SendBroadcast(groupname string, resp *pb.GroupChatResponse, listener chan string, s *ChatServiceServer,waitresponse *chan error) error {
+
+// }
 
 // var wg *sync.WaitGroup
 var mutex = &sync.RWMutex{}
@@ -181,13 +196,22 @@ var mutex = &sync.RWMutex{}
 // 	mutex.Unlock()
 // }
 
-func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string, listener chan string) {
+func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string, listener chan string) error {
 	defer wg.Done()
+	defer log.Println("Receive server  stream ended")
 	for {
+		err := contextError(stream.Context())
+		if err != nil {
+			return err
+		}
 		req, err := stream.Recv()
+		if err == io.EOF {
+			log.Print("no more data")
+			break
+		}
 		if err != nil {
 			log.Printf("error in receiving")
-			break
+			return logError(status.Errorf(codes.Unknown, "cannot receive stream request: %v", err))
 		}
 		switch req.GetAction().(type) {
 		case *pb.GroupChatRequest_Append:
@@ -244,19 +268,34 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			user := req.GetLogout().User
 			s.UserStore.DeleteUser(user)
 			s.groupstore.RemoveUser(user, groupname)
-			client := [2]string{groupname,strconv.Itoa(int(user.Id))}
+			client := [2]string{groupname, strconv.Itoa(int(user.Id))}
 			listener <- command
 			s.clients.RemoveConn(client)
-			log.Printf("user : %v left the chat",user.Name)
-			return
-			
-			
-
+			log.Printf("user : %v left the chat", user.Name)
+			return nil
 
 		default:
 			log.Printf("do nothing")
 		}
 
 	}
+	return nil
 }
 
+func contextError(ctx context.Context) error {
+	switch ctx.Err() {
+	case context.Canceled:
+		return logError(status.Error(codes.Canceled, "request is canceled"))
+	case context.DeadlineExceeded:
+		return logError(status.Error(codes.DeadlineExceeded, "deadline is exceeded"))
+	default:
+		return nil
+	}
+}
+
+func logError(err error) error {
+	if err != nil {
+		log.Print(err)
+	}
+	return err
+}
