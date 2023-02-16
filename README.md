@@ -11,7 +11,7 @@ This is a simple console based chat system implemented with Grpc in Go. Grpc use
 		*To Start the Server :  .\server_main
   
 		*To Start the client :  .\client_main
-        *To connect to server and start app :  **-c&nbsp;<ip_address>:12000**<br />
+        *To connect to server and start app :   c <ip_address>:12000
 		      *Once both client and server are up and running, User will have to give 0.0.0.0:12000 (any IP address and port must be 12000). This can be <br /> done using the following commands:<br />  
 
  Once connected to server user will have to login by giving the following command.<br />
