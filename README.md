@@ -22,8 +22,8 @@ This is a simple console based chat system implemented with Grpc in Go. Grpc use
   
   Now user can perform following actions after joined a group:<br />
   **a&nbsp;<message_>** :<br />&emsp; This command is used to append message to the chat.<br />
-  **l&nbsp;<message_id>**:<br /> &emsp;This command is used to like a message. Here message id is the number displayed before every message.  A user can not like his own message.<br />
-  **r&nbsp;<message_id>**:<br /> &emsp;This command is used to dislike a message. A user can only unlike a message iff the user had liked the same message beforehand.<br />
+  **l&nbsp;<message_number>**:<br /> &emsp;This command is used to like a message. Here message id is the number displayed before every message.  A user can not like his own message.<br />
+  **r&nbsp;<message_number>**:<br /> &emsp;This command is used to dislike a message. A user can only unlike a message iff the user had liked the same message beforehand.<br />
   **p**             <br /> &emsp; This command prints all the messages right from the group creation with latest message on bottom and oldest message on top. <br />
   **q**            <br /> &emsp;This command can be used at anytime after runs the client. This command terminates the client session and also removes<br /> all information related from the server storage.<br />
 
