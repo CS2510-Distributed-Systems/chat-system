@@ -4,13 +4,12 @@ gen:
 	protoc --proto_path=proto proto/*.proto --go_out=. --go-grpc_out=require_unimplemented_servers=false:.
 
 clean:
-	rm ./pb/*.go
+	del .\pb
 
 server:
-	go run cmd/server/main.go --port=80
+	go run cmd/server/server_main.go --port=12000
 
 client:
-	go run cmd/client/main.go --addr=0.0.0.0 --port=80
-
+	go run main.go 
 test:
 	go test -cover  ./...
