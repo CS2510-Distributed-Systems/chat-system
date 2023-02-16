@@ -22,9 +22,11 @@ Once both client and server are up and running, User will have to give 0.0.0.0:1
  **-u&nbsp;<user_name>**<br />
  <br />
  Now user can perform following actions after logging in:<br />
-  **- j&nbsp;<group_name>**: <br />&emsp;To join a group. If the given group doesn't exist, then a new group will be created and the <br />user will be added to participants list.If the user is already present in the group, then that user will be<br /> removed from the current group and will be added to the new group.<br />
+  **- j&nbsp;<group_name>**: <br />&emsp;To join a group. If the given group doesn't exist, then a new group will be created and the user will be added to participants list.<br />If the user is already present in the group, then that user will be removed from the current group and will be added to the new group.<br />
   **- a&nbsp;<message_>** :<br />&emsp; This command is used to append message to the chat.<br />
-  **- l&nbsp;<message_id>**:<br /> &emsp;This command is used to like a message. Here message id is the number displayed before<br /> every message.  A user can not like his own message.<br />
-  **- r&nbsp;<message_id>**:<br /> &emsp;This command is used to dislike a message. A user can only unlike a message iff the user had<br /> liked the same message beforehand.<br />
-  **- q**            :<br /> &emsp;This command can be used at anytime after runns the client. This command terminates the client session <br />and also removes all information related from the server storage.<br />
-  
+  **- l&nbsp;<message_id>**:<br /> &emsp;This command is used to like a message. Here message id is the number displayed before every message.  A user can not like his own message.<br />
+  **- r&nbsp;<message_id>**:<br /> &emsp;This command is used to dislike a message. A user can only unlike a message iff the user had liked the same message beforehand.<br />
+  **-p**             :<br /> &emsp; This command prints all the messages right from the group creation with latest message on bottom and oldest message on top. <br />
+  **- q**            :<br /> &emsp;This command can be used at anytime after runs the client. This command terminates the client session and also removes<br /> all information related from the server storage.<br />
+
+Once after joining a group the user user is show with latest 10 messages. User can use **p** command to see all the messages.<br /> For every action performed by the user, all other active participants are broadcasted with the change. 
