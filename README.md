@@ -7,6 +7,7 @@ This is a simple console based chat system implemented with Grpc in Go. Grpc use
 	The docker will install the grpc and protoc dependencies and go modules
 * Run the docker Image.
 	In the docker instance command Prompt,
+	
 		*To Start the Server :  .\server_main
   
 		*To Start the client :  .\client_main
