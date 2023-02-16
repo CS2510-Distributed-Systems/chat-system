@@ -40,11 +40,11 @@ EXPOSE 12000
 
 #build the server
 WORKDIR "$APP_HOME/cmd/server"
-RUN go build -o "$APP_HOME/server_main"
+RUN go build -o "$APP_HOME/server"
 WORKDIR "${APP_HOME}"
 
 #build the client
-RUN go build -o "client_main"
+RUN go build -o "client"
 
 ENTRYPOINT /bin/sh
 
