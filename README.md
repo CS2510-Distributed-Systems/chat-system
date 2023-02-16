@@ -17,8 +17,10 @@ This is a simple console based chat system implemented with Grpc in Go. Grpc use
  Once connected to server user will have to login by giving the following command.<br />
  **-u&nbsp;<user_name>**<br />
  <br />
- Now user can perform following actions after logging in:<br />
+
   **j&nbsp;<group_name>** :<br />&emsp;To join a group. If the given group doesn't exist, then a new group will be created and the user will be added to participants list.<br />If the user is already present in the group, then that user will be removed from the current group and will be added to the new group.<br />
+  
+  Now user can perform following actions after joined a group:<br />
   **a&nbsp;<message_>** :<br />&emsp; This command is used to append message to the chat.<br />
   **l&nbsp;<message_id>**:<br /> &emsp;This command is used to like a message. Here message id is the number displayed before every message.  A user can not like his own message.<br />
   **r&nbsp;<message_id>**:<br /> &emsp;This command is used to dislike a message. A user can only unlike a message iff the user had liked the same message beforehand.<br />
