@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// chat service
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
 	pb.UnimplementedAuthServiceServer
@@ -46,6 +47,7 @@ func (s *ChatServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*p
 	return res, nil
 }
 
+// logout rpc
 func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
 	s.UserStore.DeleteUser(req.User.User)
 	resp := &pb.LogoutResponse{
@@ -55,16 +57,17 @@ func (s *ChatServiceServer) Logout(ctx context.Context, req *pb.LogoutRequest) (
 	return resp, nil
 }
 
-// rpc
+// joining a group rpc
 func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		log.Printf("didnt receive the context properly from the client..")
+		log.Printf("didnt receive the context from the client")
 	}
 
 	groupname := md.Get("groupname")[0]
 	userid := md.Get("userid")[0]
 	client := [2]string{groupname, userid}
+	//removing the client from current group
 	s.clients.RemoveConn(client)
 
 	currentchat := req.GetJoinchat()
@@ -87,7 +90,7 @@ func (s *ChatServiceServer) JoinGroup(ctx context.Context, req *pb.JoinRequest) 
 
 }
 
-// streaming rpc
+// bi-directional streaming rpc
 func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) error {
 	//fetching the current group of the client from the rpc context.
 	_, cancel := context.WithCancel(stream.Context())
@@ -100,6 +103,7 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	groupname := md.Get("groupname")[0]
 	userid := md.Get("userid")[0]
 	client := [2]string{groupname, userid}
+	//add the conn to server
 	s.clients.AddConn(stream, client)
 
 	errch := make(chan error)
@@ -108,13 +112,13 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 		Group:   s.groupstore.GetGroup(groupname),
 		Command: "j",
 	}
+	//broadcast the change
 	s.clients.BroadCast(groupname, resp)
-	// waitresponse := make(chan error)
-	wg.Add(2)
 
+	wg.Add(2)
+	//receive go routine
 	go receivestream(stream, s, groupname, listener)
-	// go SendBroadcast(groupname, resp, listener, s,&waitresponse)
-	// err := <-waitresponse
+	//send go routine
 	go func() error {
 		defer wg.Done()
 		defer log.Println("send server stream ended")
@@ -128,7 +132,6 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 				s.clients.BroadCast(groupname, resp)
 				err := errors.New("Graceful shutdown requested")
 				stream.SendMsg(err)
-				// waitresponse <- err
 				return err
 			}
 
@@ -148,53 +151,7 @@ func (s *ChatServiceServer) GroupChat(stream pb.ChatService_GroupChatServer) err
 	return <-errch
 }
 
-// func SendBroadcast(groupname string, resp *pb.GroupChatResponse, listener chan string, s *ChatServiceServer,waitresponse *chan error) error {
-
-// }
-
-// var wg *sync.WaitGroup
 var mutex = &sync.RWMutex{}
-
-// func refreshgroup(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, resp *pb.GroupChatResponse) {
-// 	//Update_Chat_Sent := false
-
-// 	var group_instance = pb.Group{
-// 		GroupID:      0,
-// 		Groupname:    "",
-// 		Participants: make(map[uint32]string),
-// 		Messages:     make(map[uint32]*pb.ChatMessage),
-// 	}
-
-// 	for {
-// 		mutex.Lock()
-// 		response := s.groupstore.Modified(group_instance, resp.GetGroup().Groupname)
-// 		mutex.Unlock()
-// 		if response {
-// 			log.Println("In Modified block")
-// 			var current_group_instance = s.groupstore.GetGroup(resp.GetGroup().Groupname)
-// 			updateCurrentMapInstance(&group_instance, current_group_instance)
-// 			resp := &pb.GroupChatResponse{
-// 				Group:   current_group_instance,
-// 				Command: "refreshed",
-// 			}
-// 			sendstream(stream, resp)
-// 			log.Printf("Refresh group sent the updated group to clients")
-// 		}
-// 	}
-// }
-
-// func updateCurrentMapInstance(group_instance *pb.Group, latest_group_data *pb.Group) {
-// 	mutex.Lock()
-// 	for key, value := range latest_group_data.Participants {
-// 		group_instance.Participants[key] = value
-// 	}
-// 	mutex.Unlock()
-// 	mutex.Lock()
-// 	for key, value := range latest_group_data.Messages {
-// 		group_instance.Messages[key] = value
-// 	}
-// 	mutex.Unlock()
-// }
 
 func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, groupname string, listener chan string) error {
 	defer wg.Done()
@@ -210,7 +167,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			break
 		}
 		if err != nil {
-			log.Printf("error in receiving")
+			log.Printf("error in receiving from client")
 			return logError(status.Errorf(codes.Unknown, "cannot receive stream request: %v", err))
 		}
 		switch req.GetAction().(type) {
@@ -224,6 +181,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			if err != nil {
 				log.Printf("cannot save the message %s", err)
 			}
+			//sending to the channel
 			listener <- command
 
 		case *pb.GroupChatRequest_Like:
@@ -240,7 +198,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			if err != nil {
 				log.Printf("%s", err)
 			}
-
+			//sending to the channel
 			listener <- command
 
 		case *pb.GroupChatRequest_Unlike:
@@ -261,7 +219,11 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 
 		case *pb.GroupChatRequest_Print:
 			command := "p"
-			listener <- command
+			resp := &pb.GroupChatResponse{
+				Group: s.groupstore.GetGroup(groupname),
+				Command: command,
+			}
+			stream.Send(resp)
 
 		case *pb.GroupChatRequest_Logout:
 			command := "q"
@@ -275,7 +237,7 @@ func receivestream(stream pb.ChatService_GroupChatServer, s *ChatServiceServer, 
 			return nil
 
 		default:
-			log.Printf("do nothing")
+			log.Printf("let the client enter the command")
 		}
 
 	}

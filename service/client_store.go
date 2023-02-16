@@ -3,24 +3,22 @@ package service
 import (
 	"chat-system/pb"
 
-	"google.golang.org/grpc"
 )
 
+// stores the active user and group info
 type ClientStore interface {
 	SetUser(*pb.User) error
 	SetGroup(*pb.Group) error
 	GetUser() *pb.User
 	GetGroup() *pb.Group
-	GetConn() *grpc.ClientConn
 }
 
 type InMemoryClientStore struct {
 	active_user *pb.User
 	group       *pb.Group
-	conn *grpc.ClientConn
 }
 
-func NewInMemoryClientStore(conn *grpc.ClientConn) *InMemoryClientStore {
+func NewInMemoryClientStore() *InMemoryClientStore {
 	group := &pb.Group{
 		GroupID:      0,
 		Groupname:    "",
@@ -31,31 +29,31 @@ func NewInMemoryClientStore(conn *grpc.ClientConn) *InMemoryClientStore {
 		Name: "",
 		Id:   0,
 	}
-	
+
 	return &InMemoryClientStore{
 		active_user: active_user,
 		group:       group,
-		conn: conn,
 	}
 }
-func (clientstore *InMemoryClientStore) GetConn() *grpc.ClientConn{
-	return clientstore.conn
-}
 
+// setting a client user
 func (clientstore *InMemoryClientStore) SetUser(user *pb.User) error {
 	clientstore.active_user = user
 	return nil
 }
 
+// setting a client group
 func (clientstore *InMemoryClientStore) SetGroup(group *pb.Group) error {
 	clientstore.group = group
 	return nil
 }
 
+// getting a client user
 func (clientstore *InMemoryClientStore) GetUser() *pb.User {
 	return clientstore.active_user
 }
 
+// getting a client group
 func (clientstore *InMemoryClientStore) GetGroup() *pb.Group {
 	return clientstore.group
 }

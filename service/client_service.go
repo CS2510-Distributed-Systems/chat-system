@@ -15,11 +15,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/metadata"
-	// grpc "google.golang.org/grpc"
-	// codes "google.golang.org/grpc/codes"
-	// status "google.golang.org/grpc/status"
 )
 
+// client service
 type ChatServiceClient struct {
 	chatservice pb.ChatServiceClient
 	authservice pb.AuthServiceClient
@@ -34,9 +32,9 @@ func NewChatServiceClient(chatservice pb.ChatServiceClient, authservice pb.AuthS
 	}
 }
 
+// rpc to send the join request
 func JoinGroup(groupname string, client *ChatServiceClient) error {
-	//adding grouname to metadata
-	//adding grouname to metadata
+	//adding grouname and userdata to metadata to subscribe to broadcasts.
 	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname, "userid", strconv.Itoa(int(client.clientstore.GetUser().Id)))
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
@@ -54,19 +52,21 @@ func JoinGroup(groupname string, client *ChatServiceClient) error {
 	req := &pb.JoinRequest{
 		Joinchat: joinchat,
 	}
-	// fmt.Printf("a group is created in server: %s\n",joinchat )
+
 	res, err := client.chatservice.JoinGroup(ctx, req)
 	if err != nil {
 		return err
 	}
+	//
 	err = client.clientstore.SetGroup(res.GetGroup())
 
-	fmt.Printf("joined Group %s\n", client.clientstore.GetGroup().Groupname)
+	fmt.Printf("joined :%s\n", client.clientstore.GetGroup().Groupname)
 
 	return nil
 
 }
 
+// login rpc
 func UserLogin(user_name string, client *ChatServiceClient) error {
 	user := &pb.User{
 		Id:   uuid.New().ID(),
@@ -86,6 +86,7 @@ func UserLogin(user_name string, client *ChatServiceClient) error {
 	return nil
 }
 
+// logoutrpc to remove the user from the server
 func UserLogout(client *ChatServiceClient) bool {
 	user := client.clientstore.GetUser()
 	req := &pb.LogoutRequest{
@@ -109,8 +110,8 @@ func UserLogout(client *ChatServiceClient) bool {
 
 var wg = new(sync.WaitGroup)
 
+// Bi-directional streaming rpc to send and receive the group messages
 func GroupChat(client *ChatServiceClient) error {
-
 	md := metadata.Pairs("groupname", client.clientstore.GetGroup().Groupname, "userid", strconv.Itoa(int(client.clientstore.GetUser().Id)))
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
@@ -118,21 +119,18 @@ func GroupChat(client *ChatServiceClient) error {
 	if err != nil {
 		return err
 	}
-
-	// go routine to receive responses
-	//
 	waitResponse := make(chan error)
 	wg.Add(2)
-	// go receive(stream,waitResponse)
 	go send(stream, client)
-	go func()error {
+	//receive stream
+	go func() error {
 		defer log.Println("Receive stream ended")
 		defer wg.Done()
 		for {
 			err := contextError(stream.Context())
 			if err != nil {
-			return err
-		}
+				return err
+			}
 			res, err := stream.Recv()
 			if err == io.EOF {
 				log.Print("no more responses")
@@ -146,66 +144,29 @@ func GroupChat(client *ChatServiceClient) error {
 			}
 			command := res.Command
 			if command == "p" {
-				log.Println("printing all the messages")
 				PrintAll(res.Group)
 			} else {
 				PrintRecent(res.Group)
 			}
-
-			log.Printf("received response: %v", res)
 		}
 	}()
-
-	log.Printf("Ended recieve stream before wait")
 	wg.Wait()
-	log.Printf("Ended recieve stream after wait")
-
-	log.Printf("Ended recieve stream after waitresponse")
 	err = <-waitResponse
 	return err
 }
 
-// func receive(stream pb.ChatService_GroupChatClient, waitresponse chan error) error {
-// 	defer wg.Done()
-// 	for {
-// 		log.Println("Stil recciving...")
-// 		stream.Context().Done()
-// 		res, err := stream.Recv()
-// 		log.Printf("res : %v , err : %v", res, err)
-// 		if err == io.EOF || res.Command == "q" {
-// 			waitresponse <- nil
-// 			log.Printf("no more responses")
-// 			return err
-// 		}
-// 		if err != nil {
-// 			return fmt.Errorf("cannot receive stream response: %v", err)
-
-// 		}
-// 		command := res.Command
-// 		if command == "p" {
-// 			log.Println("printing all the messages")
-// 			PrintAll(res.Group)
-// 		} else {
-// 			PrintRecent(res.Group)
-// 		}
-
-// 	}
-// }
-
 func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) error {
-	defer log.Println("Send stream ended")
 	defer wg.Done()
 	for {
-		log.Printf("Enter the message in the stream:")
+		log.Printf("Enter the message in the group:")
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatalf("Cannot read the message, please enter again\n")
 		}
-		msg = strings.Trim(msg, "\r\n")
 
+		msg = strings.Trim(msg, "\r\n")
 		args := strings.Split(msg, " ")
 		cmd := strings.TrimSpace(args[0])
-		//args[1] = strings.Join(args[1:], " ")
 		msg = strings.Join(args[1:], " ")
 		switch cmd {
 
@@ -233,6 +194,7 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 				log.Printf("appended a message in the group")
 			}
 
+		//like message
 		case "l":
 			if client.clientstore.GetUser().GetName() == "" {
 				log.Println("Please login to join a group.")
@@ -258,27 +220,21 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 			}
 
 		case "r":
-			if client.clientstore.GetUser().GetName() == "" {
-				log.Println("Please login to join a group.")
-			} else if client.clientstore.GetGroup().Groupname == "" {
-				log.Println("Please join a group to send a message")
-			} else {
-				messagenumber, err := strconv.ParseUint(msg, 10, 32)
-				if err != nil {
-					log.Printf("please provide a valid number to unlike")
-				}
-				unlikemessage := &pb.GroupChatRequest_Unlike{
-					Unlike: &pb.UnLikeMessage{
-						User:      client.clientstore.GetUser(),
-						Messageid: uint32(messagenumber),
-						Group:     client.clientstore.GetGroup(),
-					},
-				}
-				req := &pb.GroupChatRequest{
-					Action: unlikemessage,
-				}
-				stream.Send(req)
+			messagenumber, err := strconv.ParseUint(msg, 10, 32)
+			if err != nil {
+				log.Printf("please provide a valid number to unlike")
 			}
+			unlikemessage := &pb.GroupChatRequest_Unlike{
+				Unlike: &pb.UnLikeMessage{
+					User:      client.clientstore.GetUser(),
+					Messageid: uint32(messagenumber),
+					Group:     client.clientstore.GetGroup(),
+				},
+			}
+			req := &pb.GroupChatRequest{
+				Action: unlikemessage,
+			}
+			stream.Send(req)
 
 		case "p":
 			{
@@ -295,23 +251,20 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 			}
 
 		case "j":
-			if client.clientstore.GetUser().GetName() == "" {
-				log.Println("Please login to join a group.")
-			} else if client.clientstore.GetGroup().Groupname == "" {
-				log.Println("Please join a group to send a message")
+			//join the group
+			groupname := strings.TrimSpace(args[1])
+			if groupname == "" {
+				log.Println("Please provide a valid group name")
 			} else {
-				//join the group
-				groupname := strings.TrimSpace(args[1])
 				err = JoinGroup(groupname, client)
 				if err != nil {
 					log.Printf("Failed to join a group: %v", err)
 					continue
 				}
-				//start stream
-				log.Printf("starting streaming")
 				GroupChat(client)
 			}
 
+		//quit the program
 		case "q":
 			logout := &pb.GroupChatRequest_Logout{
 				Logout: &pb.Logout{
@@ -322,11 +275,7 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 				Action: logout,
 			}
 			stream.Send(req)
-			// err = stream.CloseSend()
-			// if err != nil {
-			// 	return fmt.Errorf("cannot close send: %v", err)
-			// }
-			log.Println("closing the stream.")
+			stream.CloseSend()
 			return nil
 
 		default:
@@ -337,6 +286,7 @@ func send(stream pb.ChatService_GroupChatClient, client *ChatServiceClient) erro
 
 }
 
+// print only 10 recent messages
 func PrintRecent(group *pb.Group) {
 	groupname := group.GetGroupname()
 	participants := maps.Values(group.GetParticipants())
@@ -356,6 +306,8 @@ func PrintRecent(group *pb.Group) {
 	}
 
 }
+
+// printall
 func PrintAll(group *pb.Group) {
 	groupname := group.GetGroupname()
 	participants := maps.Values(group.GetParticipants())

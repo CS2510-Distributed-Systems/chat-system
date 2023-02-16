@@ -5,21 +5,21 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"reflect"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 )
 
+// userstore stores the user information on server
 type UserStore interface {
 	SaveUser(user *pb.User) error
 	DeleteUser(User *pb.User)
 }
 
+// groupstore stores the group information on server
 type GroupStore interface {
 	GetGroup(groupname string) *pb.Group
-	Modified(group pb.Group, groupname string) bool
 	JoinGroup(groupname string, user *pb.User) (*pb.Group, error)
 	AppendMessage(appendchat *pb.AppendChat) error
 	LikeMessage(like *pb.LikeMessage) error
@@ -27,10 +27,11 @@ type GroupStore interface {
 	RemoveUser(user *pb.User, groupname string)
 }
 
+//stores the incoming connection so as to braodcast later
 type ConnStore interface {
 	BroadCast(groupname string, resp *pb.GroupChatResponse) error
 	AddConn(stream pb.ChatService_GroupChatServer, client [2]string)
-	RemoveConn(client [2]string )
+	RemoveConn(client [2]string)
 }
 
 type InMemoryConnStore struct {
@@ -67,6 +68,7 @@ func NewInMemoryGroupStore() *InMemoryGroupStore {
 	}
 }
 
+// Broadcasts the respecitve group infos to the connected clients
 func (conn *InMemoryConnStore) BroadCast(groupname string, res *pb.GroupChatResponse) error {
 	for stream, name := range conn.clients {
 		if name[0] == groupname {
@@ -83,6 +85,7 @@ func (conn *InMemoryConnStore) BroadCast(groupname string, res *pb.GroupChatResp
 	return nil
 }
 
+// adds an incoming conn in the server connstore
 func (conn *InMemoryConnStore) AddConn(stream pb.ChatService_GroupChatServer, client [2]string) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
@@ -98,6 +101,7 @@ func (conn *InMemoryConnStore) AddConn(stream pb.ChatService_GroupChatServer, cl
 	log.Printf("Client added")
 }
 
+// removes an incoming conn in the server connstore
 func (conn *InMemoryConnStore) RemoveConn(removeclient [2]string) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
@@ -111,20 +115,6 @@ func (conn *InMemoryConnStore) RemoveConn(removeclient [2]string) {
 		}
 	}
 	log.Println("No record found in connection store")
-}
-
-func (group_master *InMemoryGroupStore) Modified(group pb.Group, groupname string) bool {
-	group_master.mutex.Lock()
-	current_group_instance := group_master.GetGroup(groupname)
-	group_master.mutex.Unlock()
-	res_Participants := reflect.DeepEqual(group.Participants, current_group_instance.Participants)
-	res_Messages := reflect.DeepEqual(group.Messages, current_group_instance.Messages)
-	if !res_Participants {
-		return true
-	} else if !res_Messages {
-		return true
-	}
-	return false
 }
 
 func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {
@@ -144,14 +134,17 @@ func (userstore *InMemoryUserStore) SaveUser(user *pb.User) error {
 	return nil
 }
 
+// deletes a user in the userstore
 func (userstore *InMemoryUserStore) DeleteUser(user *pb.User) {
 	delete(userstore.User, user.Id)
 }
 
+// retreives a group info
 func (group_master *InMemoryGroupStore) GetGroup(groupname string) *pb.Group {
 	return group_master.Group[groupname]
 }
 
+// joins a client to the requested group
 func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.User) (*pb.Group, error) {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
@@ -163,18 +156,12 @@ func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.Use
 		return group, nil
 	}
 	//if not found create one
-
 	new_group := &pb.Group{
 		GroupID:      uuid.New().ID(),
 		Groupname:    groupname,
 		Participants: make(map[uint32]string),
 		Messages:     make(map[uint32]*pb.ChatMessage),
 	}
-	// new_group.Messages[0] = &pb.ChatMessage{
-	// 	MessagedBy: user,
-	// 	Message: "",
-	// 	LikedBy: make(map[uint32]string),
-	// }
 	group_master.Group[groupname] = new_group
 	new_group.Participants[user.GetId()] = user.GetName()
 
@@ -182,6 +169,7 @@ func (group_master *InMemoryGroupStore) JoinGroup(groupname string, user *pb.Use
 	return new_group, nil
 }
 
+// appends a message in the group with the user and message information
 func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
@@ -203,6 +191,7 @@ func (group_master *InMemoryGroupStore) AppendMessage(appendchat *pb.AppendChat)
 	return nil
 }
 
+// likes a message in the group
 func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
@@ -234,6 +223,7 @@ func (group_master *InMemoryGroupStore) LikeMessage(likemessage *pb.LikeMessage)
 	return nil
 }
 
+// unlikes a message in the group
 func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMessage) error {
 	group_master.mutex.Lock()
 	defer group_master.mutex.Unlock()
@@ -264,6 +254,7 @@ func (group_master *InMemoryGroupStore) UnLikeMessage(unlikemessage *pb.UnLikeMe
 	return nil
 }
 
+// when the user left the group, we remove the user from participants of the group
 func (group_master *InMemoryGroupStore) RemoveUser(user *pb.User, groupname string) {
 	groupmap := group_master.Group[groupname]
 	if groupmap == nil {
@@ -276,5 +267,4 @@ func (group_master *InMemoryGroupStore) RemoveUser(user *pb.User, groupname stri
 	}
 
 	delete(group_master.Group[groupname].Participants, user.Id)
-
 }

@@ -7,7 +7,7 @@ clean:
 	del .\pb
 
 server:
-	go run cmd/server/main.go --port=12000
+	go run cmd/server/server_main.go --port=12000
 
 client:
 	go run main.go 
